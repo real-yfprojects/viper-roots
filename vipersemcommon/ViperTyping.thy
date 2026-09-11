@@ -73,6 +73,21 @@ lemma store_typed_unshift :
   shows "store_typed \<Lambda>' (unshift_2 n \<sigma>)"
   using assms by (auto simp add:unshift_2_def store_typed_def; blast)
 
+section \<open>value list typing\<close>
+
+text \<open>Used to check that a list of argument values (e.g. for a predicate, method, or function call)
+matches the argument types declared for it.\<close>
+
+definition vals_well_typed :: "('a \<Rightarrow> abs_type) \<Rightarrow> ('a val) list \<Rightarrow> vtyp list \<Rightarrow> bool" where
+  "vals_well_typed A vs ts \<equiv> map (get_type A) vs = ts"
+
+lemma vals_well_typed_same_lengthD:
+  assumes "vals_well_typed A vs ts"
+  shows "length vs = length ts"
+  using assms
+  unfolding vals_well_typed_def
+  by auto
+
 section \<open>expression and statement typing\<close>
 
 \<comment>\<open>

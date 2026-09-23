@@ -32,6 +32,10 @@ lemma make_semantic_rexp_Some[simp]:
 definition red_pure_assert ::  "('a, 'a virtual_state) interp \<Rightarrow> pure_exp \<Rightarrow> 'a extended_val \<Rightarrow> 'a equi_state set" ("_ \<turnstile> ((\<langle>_\<rangle>) [\<Down>] _)" [51,0,0] 81) where
 "red_pure_assert \<Delta> e r = corely {\<omega>. \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] r}"
 
+(* plural of red_pure_assert. Assert that a list of reduction hold for the same state *)
+definition red_pure_exps_assert :: "('a, 'a virtual_state) interp \<Rightarrow> pure_exp list \<Rightarrow> 'a val list \<Rightarrow> 'a equi_state set" where
+  "red_pure_exps_assert \<Delta> es rs = corely {\<omega>. red_pure_exps \<Delta> \<omega> es rs }"
+
 lemma red_pure_assert_intro :
   assumes "\<Delta> \<turnstile> \<langle>e;\<omega>\<rangle> [\<Down>] r"
   assumes "\<And> f vals st. interp.funs \<Delta> f vals st = interp.funs \<Delta> f vals |st|"
@@ -115,7 +119,7 @@ lemma acc_heap_loc_starI :
 lemma abs_state_star_singletonE :
   assumes "\<omega>' \<in> {\<omega>} \<otimes> A"
   assumes "\<And> \<omega>''. \<omega>'' \<in> A \<Longrightarrow>
-     get_store \<omega>'' = get_store \<omega> \<Longrightarrow> 
+     get_store \<omega>'' = get_store \<omega> \<Longrightarrow>
      get_trace \<omega>'' = get_trace \<omega> \<Longrightarrow>
      get_store \<omega>' = get_store \<omega> \<Longrightarrow>
      get_trace \<omega>' = get_trace \<omega> \<Longrightarrow>
@@ -151,6 +155,34 @@ lemma acc_Stable [simp] :
   apply (clarsimp simp add:acc_def)
   by (rule Stable_ex, rule Stable_star; simp)
 
+(* TODO move into preal file *)
+lemma ppos_pmin [simp] :
+  "ppos (pmin a b) \<longleftrightarrow> ppos a \<and> ppos b"
+  by (simp add: norm_preal preal_to_real)
+
+lemma ppos_pmult [simp] :
+  "ppos (a * b) \<longleftrightarrow> ppos a \<and> ppos b"
+  by (transfer) (simp add: zero_less_mult_iff)
+
+lemma ppos_one:
+  "ppos 1"
+  by (simp add: norm_preal preal_to_real)
+
+(* lemma preal_mult_le_1 :
+  "(p :: preal) \<le> 1 \<Longrightarrow> (m :: preal) \<le> 1 \<Longrightarrow> p * m \<le> 1"
+  by (transfer) (simp add: mult_le_one) *)
+(*  ------------  *)
+
+lift_definition mult_virt :: "preal \<Rightarrow> 'a virtual_state \<Rightarrow> 'a virtual_state" is
+  "\<lambda> p s. ( (\<lambda> hl. pmin 1 (p * get_vm s hl)), get_vh s)"
+  apply (simp add: wf_pre_virtual_state_def wf_mask_simple_def ppos_one)
+  by (metis vstate_wf_Some)
+
+definition acc_pred :: "('a, 'a virtual_state) ValueAndBasicState.interp \<Rightarrow> 'a predicate_loc \<Rightarrow> real option \<Rightarrow> 'a equi_state set" where
+  "acc_pred \<Delta> pred p =  (\<Union> A. \<llangle> predicates \<Delta> pred = Some A \<rrangle>
+    \<otimes> (if p = Some 0 then emp else
+    \<Union> pp. \<llangle> p = None \<or> p = Some pp \<rrangle> \<otimes> \<llangle> 0 < pp \<and> pp \<le> 1 \<rrangle>
+      \<otimes> { \<omega> . \<exists>a \<in> A. get_state \<omega> = mult_virt (Abs_preal pp) a } ))"
 
 
 fun atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> (field_name \<rightharpoonup> vtyp) \<Rightarrow> pure_exp atomic_assert \<Rightarrow> bool option \<Rightarrow> 'v equi_state set" where
@@ -158,6 +190,11 @@ fun atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> (field_name 
 | "atomic_assert \<Delta> F (Acc e f ep) (Some True) = (\<Union> r p ty. (\<Delta> \<turnstile> \<langle>e\<rangle> [\<Down>] Val (VRef r)) \<otimes> \<llangle>F f = Some ty\<rrangle> \<otimes>
       (case ep of Wildcard \<Rightarrow> \<llangle>p = None\<rrangle> | PureExp ep \<Rightarrow> \<Union> p'. (\<Delta> \<turnstile> \<langle>ep\<rangle> [\<Down>] Val (VPerm p')) \<otimes> \<llangle>p = Some p'\<rrangle>) \<otimes>
       acc \<Delta> ty r f p)"
+  | "atomic_assert \<Delta> F (AccPredicate ident eargs ep) (Some True) =
+      (\<Union> vals p. (red_pure_exps_assert \<Delta> eargs vals) \<otimes>
+        (case ep of Wildcard \<Rightarrow> \<llangle>p = None\<rrangle>
+        | PureExp ep \<Rightarrow> \<Union> p'. (\<Delta> \<turnstile> \<langle>ep\<rangle> [\<Down>] Val (VPerm p') ) \<otimes> \<llangle>p = Some p'\<rrangle> ) \<otimes>
+          acc_pred \<Delta> (ident, vals) p )"
 
 fun sat_set :: "('a, 'a virtual_state) ValueAndBasicState.interp \<Rightarrow> (field_name \<rightharpoonup> vtyp)
      \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state set" ("\<langle>_, _\<rangle> \<Turnstile> ((\<langle>_\<rangle>))" [0,0,0] 84) where
@@ -277,7 +314,7 @@ proof (rule full_state_ext)
           by (metis (no_types) max_projection_prop_def max_projection_prop_stable_stabilize)
         then show ?thesis
           using a2 a1 by (smt (z3) \<open>get_m (stabilize (remove_only \<omega> l)) = get_m (remove_only (stabilize \<omega>) l)\<close> fun_upd_other get_vh_Some_greater remove_only_charact(1) stable_get_state stable_virtual_state_def vstate_wf_Some)
-      qed        
+      qed
     qed
   qed
 qed (simp_all add: remove_only_def)
@@ -495,7 +532,7 @@ qed
 
 
 global_interpretation TypedEqui: typed_state well_typed
-proof                             
+proof
   fix x a b :: "('a ag_trace \<times> 'a virtual_state)"
   fix \<Gamma>
   show "Some x = a \<oplus> b \<Longrightarrow> well_typed \<Gamma> a \<Longrightarrow> well_typed \<Gamma> b \<Longrightarrow> well_typed \<Gamma> x"
@@ -689,7 +726,7 @@ proof (rule self_framingI)
       proof (rule full_state_ext_better)
         show "get_state (stabilize (set_state \<omega>' (set_value (get_state \<omega>') (l, f) v0))) = get_state (stabilize \<omega>)"
         proof (rule virtual_state_ext_stable)
-          have "get_m (stabilize (set_state \<omega>' (set_value (get_state \<omega>') (l, f) v0))) = get_m \<omega>'" 
+          have "get_m (stabilize (set_state \<omega>' (set_value (get_state \<omega>') (l, f) v0))) = get_m \<omega>'"
             by simp
           then show "get_m (stabilize (set_state \<omega>' (set_value (get_state \<omega>') (l, f) v0))) = get_m (stabilize \<omega>)"
             using r by auto
@@ -697,7 +734,7 @@ proof (rule self_framingI)
             by (metis get_state_def stabilize_is_stable stable_prod_def)
           show "sep_algebra_class.stable (get_state (stabilize \<omega>))"
             by (metis get_state_def stabilize_is_stable stable_prod_def)
-          
+
           fix l' va vb assume "get_h (stabilize (set_state \<omega>' (set_value (get_state \<omega>') (l, f) v0))) l' = Some va"
             "get_h (stabilize \<omega>) l' = Some vb"
           then have "get_h \<omega> l' = Some vb"
@@ -823,7 +860,7 @@ proof -
       then show "\<omega>' \<in> ?B" unfolding update_value_def
         by (simp add: \<open>sep_algebra_class.stable \<omega>'\<close> already_stable)
     qed
-    
+
     show "\<omega>' \<in> update_value \<Delta> (Stabilize (snd ` SA)) r g e \<Longrightarrow> \<omega>' \<in> Stabilize (\<Union> (f ` SA))"
     proof -
       assume "\<omega>' \<in> update_value \<Delta> (Stabilize (snd ` SA)) r g e"
@@ -937,7 +974,7 @@ proof
   fix \<Delta> C f
   show "\<forall>\<omega>\<in>SA. red_custom_stmt \<Delta> C (snd \<omega>) (f \<omega>) \<Longrightarrow>
        wf_custom_stmt \<Delta> C \<Longrightarrow>
-       TypedEqui.wf_set \<Delta> (snd ` SA) \<Longrightarrow> SL_Custom \<Delta> (Stabilize (snd ` SA)) C (Stabilize (\<Union> (f ` SA)))"    
+       TypedEqui.wf_set \<Delta> (snd ` SA) \<Longrightarrow> SL_Custom \<Delta> (Stabilize (snd ` SA)) C (Stabilize (\<Union> (f ` SA)))"
     by (simp add: SL_proof_aux_custom TypedEqui.wf_set_def TypedEqui.wf_state_def)
   fix A B \<omega>
   show "SL_Custom \<Delta> A C B \<Longrightarrow> \<omega> \<in> A \<Longrightarrow> wf_custom_stmt \<Delta> C \<Longrightarrow> sep_algebra_class.stable \<omega> \<Longrightarrow> TypedEqui.typed \<Delta> \<omega> \<Longrightarrow> \<exists>S. red_custom_stmt \<Delta> C \<omega> S \<and> S \<subseteq> B"
@@ -1012,7 +1049,7 @@ lemma well_typedly_add_set_l :
 lemma Stable_well_typedly :
   assumes "Stable A"
   shows "Stable (well_typedly \<Delta> F A)"
-  using assms          
+  using assms
   apply (simp add:Stable_def Stabilize_def well_typedly_def)
   using TypedEqui.typed_state_then_stabilize_typed by fastforce
 

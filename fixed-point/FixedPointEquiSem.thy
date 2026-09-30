@@ -20,71 +20,71 @@ It only remains to instantiate \<open>option\<close> as a complete lattice since
 
 instantiation option :: (complete_lattice) complete_lattice
 begin
-  definition bot_option :: "'a option" where
-    "bot_option = None"
+definition bot_option :: "'a option" where
+  "bot_option = None"
 
-  definition top_option  :: "'a option" where
-    "top_option = Some top"
+definition top_option  :: "'a option" where
+  "top_option = Some top"
 
-  definition Inf_option :: "'a option set \<Rightarrow> 'a option" where
-    "Inf_option A = (if None \<in> A then None else Some (Inf {x. Some x \<in> A}))"
+definition Inf_option :: "'a option set \<Rightarrow> 'a option" where
+  "Inf_option A = (if None \<in> A then None else Some (Inf {x. Some x \<in> A}))"
 
-  definition Sup_option :: "'a option set \<Rightarrow> 'a option" where
-    "Sup_option A = (if \<exists>x. Some x \<in> A then Some (Sup {x. Some x \<in> A}) else None)"
+definition Sup_option :: "'a option set \<Rightarrow> 'a option" where
+  "Sup_option A = (if \<exists>x. Some x \<in> A then Some (Sup {x. Some x \<in> A}) else None)"
 
-  definition inf_option :: "'a option \<Rightarrow> 'a option \<Rightarrow> 'a option" where
-    "inf_option x y = Inf {x,y}"
+definition inf_option :: "'a option \<Rightarrow> 'a option \<Rightarrow> 'a option" where
+  "inf_option x y = Inf {x,y}"
 
- definition sup_option :: "'a option \<Rightarrow> 'a option \<Rightarrow> 'a option " where
-    "sup_option x y = Sup {x,y}"
+definition sup_option :: "'a option \<Rightarrow> 'a option \<Rightarrow> 'a option " where
+  "sup_option x y = Sup {x,y}"
 
 
 
-  lemma Inf_option_lower:
-    assumes "x \<in> (A :: 'a option set)"
-    shows "Inf A \<le> x"
-  proof (cases "x = None")
+lemma Inf_option_lower:
+  assumes "x \<in> (A :: 'a option set)"
+  shows "Inf A \<le> x"
+proof (cases "x = None")
   case True
-    thus ?thesis using assms by (auto simp add:Inf_option_def less_eq_option_def)
-  next
+  thus ?thesis using assms by (auto simp add:Inf_option_def less_eq_option_def)
+next
   case False
-    thus ?thesis using assms by (auto simp add:Inf_option_def less_eq_option_def Inf_lower)
-  qed
+  thus ?thesis using assms by (auto simp add:Inf_option_def less_eq_option_def Inf_lower)
+qed
 
-  lemma Sup_option_upper:
-    assumes "x \<in> (A :: 'a option set)"
-    shows "x \<le> Sup A"
-    proof (cases "x = None")
-    case True
-      thus ?thesis by (auto simp add:less_eq_option_def)
-    next
-    case False
-      thus ?thesis using assms by (auto simp add:Sup_option_def less_eq_option_def Sup_upper)
-    qed
+lemma Sup_option_upper:
+  assumes "x \<in> (A :: 'a option set)"
+  shows "x \<le> Sup A"
+proof (cases "x = None")
+  case True
+  thus ?thesis by (auto simp add:less_eq_option_def)
+next
+  case False
+  thus ?thesis using assms by (auto simp add:Sup_option_def less_eq_option_def Sup_upper)
+qed
 
-  lemma Inf_option_greatest:
-    assumes "\<And>x. x \<in> (A :: 'a option set) \<Longrightarrow> z \<le> x"
-    shows "z \<le> Inf A"
-    proof (cases "z = None")
-    case True
-      thus ?thesis by (auto simp add:less_eq_option_def)
-    next
-    case False
-      then obtain w where "z = Some w" by auto
-      thus ?thesis using assms by (auto simp add:Inf_option_def less_eq_option_def intro:Inf_greatest)
-    qed
+lemma Inf_option_greatest:
+  assumes "\<And>x. x \<in> (A :: 'a option set) \<Longrightarrow> z \<le> x"
+  shows "z \<le> Inf A"
+proof (cases "z = None")
+  case True
+  thus ?thesis by (auto simp add:less_eq_option_def)
+next
+  case False
+  then obtain w where "z = Some w" by auto
+  thus ?thesis using assms by (auto simp add:Inf_option_def less_eq_option_def intro:Inf_greatest)
+qed
 
-    lemma Sup_option_least:
-    assumes "\<And>x. x \<in> (A :: 'a option set) \<Longrightarrow> x \<le> z"
-    shows "Sup A \<le> z"
-    proof (cases "\<forall>y \<in> A. y = None")
-    case True
-      thus ?thesis by (auto simp add:Sup_option_def less_eq_option_def)
-    next
-    case False
-      then obtain w where "z = Some w" using assms less_eq_option_def by blast
-      thus ?thesis using assms by (auto simp add:Sup_option_def less_eq_option_def intro:Sup_least)
-    qed
+lemma Sup_option_least:
+  assumes "\<And>x. x \<in> (A :: 'a option set) \<Longrightarrow> x \<le> z"
+  shows "Sup A \<le> z"
+proof (cases "\<forall>y \<in> A. y = None")
+  case True
+  thus ?thesis by (auto simp add:Sup_option_def less_eq_option_def)
+next
+  case False
+  then obtain w where "z = Some w" using assms less_eq_option_def by blast
+  thus ?thesis using assms by (auto simp add:Sup_option_def less_eq_option_def intro:Sup_least)
+qed
 
 
 instance proof
@@ -100,13 +100,13 @@ instance proof
 next
   fix x y z :: "'a option"
   assume "x \<le> y"
-     and "x \<le> z"
+    and "x \<le> z"
   thus "x \<le> inf y z"
     using inf_option_def Inf_option_greatest by fastforce
 next
   fix y x z :: "'a option"
   assume "y \<le> x"
-     and "z \<le> x"
+    and "z \<le> x"
   then show "sup y z \<le> x"
     using sup_option_def Sup_option_least by fastforce
 next
@@ -212,7 +212,7 @@ lemma red_pure_assert_const:
   fixes e :: "pure_exp"
     and r :: "'v extended_val"
   shows "let pa = (\<lambda>pinterp. mk_interp pinterp \<turnstile> \<langle>e\<rangle> [\<Down>] r) in pa pinterp = pa pinterp'"
-  unfolding  red_pure_assert_def corely_def
+  unfolding red_pure_assert_def corely_def
   using red_pure_indep_interp_pred
   by (smt (verit) Collect_cong interp.select_convs(1,3) subsetI)
 
@@ -220,75 +220,75 @@ lemma red_pure_assert_const:
 lemma atomic_assert_mono:
   fixes A :: "pure_exp atomic_assert"
   shows "mono (\<lambda> pinterp. atomic_assert (mk_interp pinterp) F A (Some True))" (is "mono (\<lambda> pinterp. ?atomic_assert pinterp A)")
-  proof
-    fix x y :: "'v pred_interp"
-    note red_pure_xy = red_pure_assert_const[unfolded Let_def, where pinterp = x and pinterp' = y]
-    assume "x \<le> y"
-    then show "?atomic_assert x A \<le> ?atomic_assert y A"
-    proof (cases A)
-      case (Pure e)
-      then show ?thesis by (auto simp add: red_pure_xy)
-    next
-        case (Acc e f w)
-        then show ?thesis using \<open>x\<le>y\<close>
-        apply (auto del: subsetI intro!: SUP_subset_mono[OF subset_refl] add_set_mono simp add: red_pure_xy split: exp_or_wildcard.split)
+proof
+  fix x y :: "'v pred_interp"
+  note red_pure_xy = red_pure_assert_const[unfolded Let_def, where pinterp = x and pinterp' = y]
+  assume "x \<le> y"
+  then show "?atomic_assert x A \<le> ?atomic_assert y A"
+  proof (cases A)
+    case (Pure e)
+    then show ?thesis by (auto simp add: red_pure_xy)
+  next
+    case (Acc e f w)
+    then show ?thesis using \<open>x\<le>y\<close>
+       apply (auto del: subsetI intro!: SUP_subset_mono[OF subset_refl] add_set_mono simp add: red_pure_xy split: exp_or_wildcard.split)
         (* TODO acc_mono *)
-        sorry
-      next
-        case (AccPredicate name args w)
-        then show ?thesis using \<open>x\<le>y\<close>
-        apply (auto del: subsetI intro!: SUP_subset_mono[OF subset_refl] add_set_mono simp add: red_pure_xy split: exp_or_wildcard.split)
+      sorry
+  next
+    case (AccPredicate name args w)
+    then show ?thesis using \<open>x\<le>y\<close>
+       apply (auto del: subsetI intro!: SUP_subset_mono[OF subset_refl] add_set_mono simp add: red_pure_xy split: exp_or_wildcard.split)
         (* TODO acc_pred_mono *)
-        sorry
-      qed
-    qed
+      sorry
+  qed
+qed
 
 lemma sat_set_mono:
   fixes body :: "assertion"
   assumes "wf_pred_body body"
   shows "mono (\<lambda> pinterp. \<langle> mk_interp pinterp, F \<rangle> \<Turnstile> \<langle>body\<rangle> )" (is "mono (\<lambda> pinterp. ?sat_set pinterp body)")
-  proof
-    fix x y :: "'v pred_interp"
-    note red_pure_xy = red_pure_assert_const[unfolded Let_def, where pinterp = x and pinterp' = y]
-    assume "x \<le> y"
-    then show "?sat_set x body \<le> ?sat_set y body"
-      using assms
-    proof (induction body)
-      case (Atomic a)
-      show ?case using monoD[OF atomic_assert_mono \<open>x \<le> y\<close>] by simp
-    next
-      case (Imp e A)
-      hence "?sat_set x A \<le> ?sat_set y A" using wf_pred_body_sub by blast
-      thus ?case
+proof
+  fix x y :: "'v pred_interp"
+  note red_pure_xy = red_pure_assert_const[unfolded Let_def, where pinterp = x and pinterp' = y]
+  assume "x \<le> y"
+  then show "?sat_set x body \<le> ?sat_set y body"
+    using assms
+  proof (induction body)
+    case (Atomic a)
+    show ?case using monoD[OF atomic_assert_mono \<open>x \<le> y\<close>] by simp
+  next
+    case (Imp e A)
+    hence "?sat_set x A \<le> ?sat_set y A" using wf_pred_body_sub by blast
+    thus ?case
       unfolding sat_set.simps
       by (intro SUP_subset_mono[OF subset_refl] add_set_mono)
         (auto simp add: red_pure_xy)
-    next
-      case (CondAssert e A B)
-      hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
-        using wf_pred_body_sub by blast+
-      thus ?case
+  next
+    case (CondAssert e A B)
+    hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
+      using wf_pred_body_sub by blast+
+    thus ?case
       unfolding sat_set.simps
       by (intro SUP_subset_mono[OF subset_refl] add_set_mono)
         (auto simp add: red_pure_xy)
-    next
-      case (ImpureAnd A B)
-      hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
-        using wf_pred_body_sub by blast+
-      thus ?case by auto
-    next
-      case (ImpureOr A B)
-      hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
-        using wf_pred_body_sub by blast+
-      thus ?case by auto
-    next
-      case (Star A B)
-      hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
-        using wf_pred_body_sub by blast+
-      thus ?case using assms wf_pred_body_sub add_set_mono by (metis sat_set.simps(4))
-    (* remaining cases Wand, ForAll, Exists are trivial as they are not allowed in predicate bodies *)
-    qed (use wf_pred_body_sub in blast)+
-  qed
+  next
+    case (ImpureAnd A B)
+    hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
+      using wf_pred_body_sub by blast+
+    thus ?case by auto
+  next
+    case (ImpureOr A B)
+    hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
+      using wf_pred_body_sub by blast+
+    thus ?case by auto
+  next
+    case (Star A B)
+    hence "?sat_set x A \<le> ?sat_set y A" "?sat_set x B \<le> ?sat_set y B"
+      using wf_pred_body_sub by blast+
+    thus ?case using assms wf_pred_body_sub add_set_mono by (metis sat_set.simps(4))
+        (* remaining cases Wand, ForAll, Exists are trivial as they are not allowed in predicate bodies *)
+  qed (use wf_pred_body_sub in blast)+
+qed
 
 
 section \<open>Least Fixed Point of Predicate Evaluation\<close>
@@ -317,7 +317,7 @@ definition pred_sem :: "'v pred_interp" where
 lemma pred_eval_mono:
   assumes wf: "wf_pred_defs pdefs"
   shows "mono pred_eval"
-  (* proof (rule monoI)
+    (* proof (rule monoI)
     fix x y :: "'v pred_interp"
     assume "x \<le> y"
     show ?thesis[unfolded mono_def]
@@ -342,18 +342,18 @@ lemma pred_sem_fp:
   using lfp_fixpoint pred_eval_mono assms by (metis pred_sem_def)
 
 definition is_lfp :: "('a ::complete_lattice \<Rightarrow> 'a) \<Rightarrow> 'a \<Rightarrow> bool" where
- "is_lfp f x \<equiv> (f x = x) \<and> (\<forall>y. (f y = y) \<longrightarrow> x \<le> y )"
+  "is_lfp f x \<equiv> (f x = x) \<and> (\<forall>y. (f y = y) \<longrightarrow> x \<le> y )"
 
 lemma pred_sem_is_lfp:
   assumes wf: "wf_pred_defs pdefs"
   shows "is_lfp pred_eval pred_sem"
-  proof -
-    have "Inf {u. pred_eval u \<le> u} \<le> Inf {u. pred_eval u = u}" by (simp add: Collect_mono_iff Inf_superset_mono)
-    hence "pred_sem \<le> Inf {u. pred_eval u = u}" unfolding pred_sem_def lfp_def by auto
-    moreover have "Inf {u. pred_eval u = u} \<le> pred_sem" using pred_sem_fp wf by (simp add: Inf_lower)
-    ultimately have "pred_sem = Inf {u. pred_eval u = u}" by auto
-    thus ?thesis unfolding is_lfp_def using pred_sem_fp wf by (auto simp add: Inf_lower)
-  qed
+proof -
+  have "Inf {u. pred_eval u \<le> u} \<le> Inf {u. pred_eval u = u}" by (simp add: Collect_mono_iff Inf_superset_mono)
+  hence "pred_sem \<le> Inf {u. pred_eval u = u}" unfolding pred_sem_def lfp_def by auto
+  moreover have "Inf {u. pred_eval u = u} \<le> pred_sem" using pred_sem_fp wf by (simp add: Inf_lower)
+  ultimately have "pred_sem = Inf {u. pred_eval u = u}" by auto
+  thus ?thesis unfolding is_lfp_def using pred_sem_fp wf by (auto simp add: Inf_lower)
+qed
 
 (* QUESTION:
 These don't seem to be necessary to exclude:

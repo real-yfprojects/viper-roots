@@ -256,12 +256,12 @@ lift_definition plus_virtual_state :: "'a virtual_state \<Rightarrow> 'a virtual
   is "(\<lambda> st1 st2. Option.bind (st1 \<oplus> st2) (\<lambda> x. if is_bounded x then Some x else None))"
   by (simp add: bind_split)
 
-lemma compatible_virtual_state_implies_pre_virtual_state:
+lemma compatible_virtual_state_implies_unbounded_virtual_state:
   assumes "Some x = a \<oplus> b"
   shows "Some (Rep_virtual_state x) = Rep_virtual_state a \<oplus> Rep_virtual_state b"
   using assms apply (transfer) by (clarsimp split:bind_splits if_splits)
 
-lemma compatible_virtual_state_implies_pre_virtual_state_rev:
+lemma compatible_virtual_state_implies_unbounded_virtual_state_rev:
   assumes "Some (Rep_virtual_state x) = Rep_virtual_state a \<oplus> Rep_virtual_state b"
   shows "Some x = a \<oplus> b"
   using assms apply (transfer) by (clarsimp simp add:wf_pre_virtual_state_def split:bind_splits if_splits)
@@ -292,7 +292,7 @@ lemma get_vm_plus:
   shows "get_vm ab hl = get_vm a hl + get_vm b hl"
 proof -
   have "Some (vs2tuple ab) = vs2tuple a \<oplus> vs2tuple b"
-    using assms compatible_virtual_state_implies_pre_virtual_state
+    using assms compatible_virtual_state_implies_unbounded_virtual_state
       compatible_unbounded_virtual_state_implies_pre_virtual_state by metis
   then have "Some (get_vm ab) = get_vm a \<oplus> get_vm b"
     by (metis get_vm_def plus_prodE)
@@ -311,12 +311,12 @@ instance proof
   show "a \<oplus> b = b \<oplus> a"
     by (simp add: commutative plus_virtual_state_def)
   show "a \<oplus> b = Some ab \<and> b \<oplus> c = Some bc \<Longrightarrow> ab \<oplus> c = a \<oplus> bc"
-    by (smt (verit, del_insts) EquiViper.compatible_virtual_state_implies_pre_virtual_state asso1 map_fun_apply plus_virtual_state_def)
+    by (smt (verit, del_insts) EquiViper.compatible_virtual_state_implies_unbounded_virtual_state asso1 map_fun_apply plus_virtual_state_def)
   show "a \<oplus> b = Some ab \<and> b \<oplus> c = None \<Longrightarrow> ab \<oplus> c = None"
   proof (elim conjE)
     assume ab: "a \<oplus> b = Some ab" and bc: "b \<oplus> c = None"
     have ab_rep: "?a \<oplus> ?b = Some ?ab"
-      using ab compatible_virtual_state_implies_pre_virtual_state by metis
+      using ab compatible_virtual_state_implies_unbounded_virtual_state by metis
     from bc consider (rep) "?b \<oplus> ?c = None" | (unbounded) "\<not> wf_mask_simple (the (get_vm b \<oplus> get_vm c))"
       by (auto simp add: virtual_state_plus_None)
     then show "ab \<oplus> c = None"
@@ -340,9 +340,9 @@ instance proof
 
   assume "a \<oplus> b = Some c" "Some c = c \<oplus> c"
   then show "Some a = a \<oplus> a"
-    using compatible_virtual_state_implies_pre_virtual_state[of c c c]
-      compatible_virtual_state_implies_pre_virtual_state[of c a b]
-      compatible_virtual_state_implies_pre_virtual_state_rev[of a a a]
+    using compatible_virtual_state_implies_unbounded_virtual_state[of c c c]
+      compatible_virtual_state_implies_unbounded_virtual_state[of c a b]
+      compatible_virtual_state_implies_unbounded_virtual_state_rev[of a a a]
       positivity[of ?a ?b ?c]
     by fastforce
 qed

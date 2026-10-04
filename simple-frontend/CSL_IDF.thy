@@ -1211,7 +1211,7 @@ proof -
     using assms(2) calculation pperm_pgt_pnone stable_virtual_state_def
     by (metis EquiSemAuxLemma.gr_0_is_ppos)
   show ?thesis
-  proof (rule compatible_virtual_state_implies_pre_virtual_state_rev)
+  proof (rule compatible_virtual_state_implies_unbounded_virtual_state_rev)
     show "Some (Rep_virtual_state (set_value \<omega>' l v)) = Rep_virtual_state (set_value \<omega> l v) \<oplus> Rep_virtual_state \<omega>f"
     proof (rule plus_prodI)
       show "Some (fst (Rep_virtual_state (set_value \<omega>' l v))) = fst (Rep_virtual_state (set_value \<omega> l v)) \<oplus> fst (Rep_virtual_state \<omega>f)"

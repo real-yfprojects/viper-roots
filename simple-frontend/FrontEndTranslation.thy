@@ -1637,7 +1637,7 @@ proof -
       apply (meson pure_def pure_pure_virtual_state_heap sum_equi_states_easy)
      apply (intro plus_prodI)
        apply simp_all
-     apply (intro compatible_virtual_state_implies_pre_virtual_state_rev)
+     apply (intro compatible_virtual_state_implies_unbounded_virtual_state_rev)
      apply (intro plus_prodI)
       apply (metis get_vh_vm_pure_virtual_state(2) get_vm_def zero_mask_identity)
     using r

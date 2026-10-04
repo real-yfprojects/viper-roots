@@ -411,7 +411,7 @@ proof -
       show "Some (fst (snd \<omega>)) = fst (snd (remove_only \<omega> l)) \<oplus> fst (snd ptr)"
         by (metis plus_agreement_def prod.exhaust_sel prod.inject ptr_def remove_only_def set_state_def set_state_get_state)
       show "Some (snd (snd \<omega>)) = snd (snd (remove_only \<omega> l)) \<oplus> snd (snd ptr)"
-      proof (rule compatible_virtual_state_implies_pre_virtual_state_rev)
+      proof (rule compatible_virtual_state_implies_unbounded_virtual_state_rev)
         show "Some (Rep_virtual_state (snd (snd \<omega>))) = Rep_virtual_state (snd (snd (remove_only \<omega> l))) \<oplus> Rep_virtual_state (snd (snd ptr))"
         proof (rule plus_prodI)
           show "Some (fst (Rep_virtual_state (snd (snd \<omega>)))) = fst (Rep_virtual_state (snd (snd (remove_only \<omega> l)))) \<oplus> fst (Rep_virtual_state (snd (snd ptr)))"

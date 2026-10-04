@@ -1,6 +1,6 @@
 theory EquiViper
   imports Main ViperCommon.PosPerm ViperCommon.ValueAndBasicState ViperCommon.PartialMap ViperCommon.Binop ViperCommon.DeBruijn
-  ViperCommon.PosReal ViperCommon.SepAlgebra AbstractSemantics
+    ViperCommon.PosReal ViperCommon.SepAlgebra AbstractSemantics
 begin
 
 subsection \<open>Pre-virtual equi_states\<close>
@@ -57,15 +57,18 @@ qed
 
 end
 
+definition wf_permission_occupied :: "'a pre_virtual_state \<Rightarrow> bool" where
+  "wf_permission_occupied st \<longleftrightarrow> (\<forall>hl. ppos (fst st hl) \<longrightarrow> snd st hl \<noteq> None)"
+
 definition wf_pre_virtual_state :: "'a pre_virtual_state \<Rightarrow> bool" where
-  "wf_pre_virtual_state st \<longleftrightarrow> (\<forall>hl. ppos (fst st hl) \<longrightarrow> snd st hl \<noteq> None) \<and> wf_mask_simple (fst st)"
+  "wf_pre_virtual_state st \<longleftrightarrow> wf_permission_occupied st \<and> wf_mask_simple (fst st)"
 
 
 lemma wf_pre_virtual_stateI:
   assumes "\<And>hl. ppos (\<pi> hl) \<Longrightarrow> h hl \<noteq> None"
   assumes "wf_mask_simple \<pi>"
-    shows "wf_pre_virtual_state (\<pi>, h)"
-  using assms by (simp add:wf_pre_virtual_state_def)
+  shows "wf_pre_virtual_state (\<pi>, h)"
+  using assms by (simp add:wf_pre_virtual_state_def wf_permission_occupied_def)
 
 
 subsection \<open>Additions\<close>
@@ -85,9 +88,16 @@ lemma pre_wf_plus_def:
   "(\<pi>' :: preal mask, h') ## (\<pi>, h) \<longleftrightarrow> h' ## h"
   by (simp add: comp_prod masks_can_always_be_added)
 
+subsection \<open>Empty state\<close>
 
 
-subsection \<open>Virtual equi_states\<close>
+
+subsection \<open>Unbounded virtual equi_states\<close>
+
+text \<open>These are derived from pre_virtual_state and form the basis of the virtual state.
+  To implement recursive predicate semantics we need to allow states with more than
+  1 permission to satisfy predicates such that fractional predicate permissions
+  can be handled correctly.\<close>
 
 definition empty_heap :: "'a partial_heap" where "empty_heap = Map.empty"
 definition uuu :: "'a pre_virtual_state" where "uuu = (zero_mask, empty_heap)"
@@ -101,28 +111,125 @@ proof (rule wf_pre_virtual_stateI)
     by (simp add: wf_zero_mask)
 qed
 
-typedef 'a virtual_state = "{ \<phi> :: 'a pre_virtual_state |\<phi>. wf_pre_virtual_state \<phi> }"
-  using wf_uuu by blast                       
+typedef 'a unbounded_virtual_state = "{ \<phi> :: 'a pre_virtual_state |\<phi>. wf_permission_occupied \<phi> }"
+  using wf_uuu wf_pre_virtual_state_def by blast
+
+setup_lifting type_definition_unbounded_virtual_state
+
+
+lift_definition unuu :: "'a unbounded_virtual_state" is "uuu"
+  using wf_uuu by (auto simp add: uuu_def wf_pre_virtual_state_def)
+
+definition is_bounded :: "  'a unbounded_virtual_state \<Rightarrow> bool" where
+  "is_bounded \<phi> = wf_mask_simple (fst (Rep_unbounded_virtual_state \<phi>))"
+
+
+definition get_uvh :: "'a unbounded_virtual_state \<Rightarrow> 'a partial_heap" where "get_uvh \<phi> = snd (Rep_unbounded_virtual_state \<phi>)"
+definition get_uvm :: "'a unbounded_virtual_state \<Rightarrow> preal mask" where "get_uvm \<phi> = fst (Rep_unbounded_virtual_state \<phi>)"
+instantiation unbounded_virtual_state :: (type) pcm
+begin
+
+lift_definition plus_unbounded_virtual_state :: "'a unbounded_virtual_state \<Rightarrow> 'a unbounded_virtual_state \<Rightarrow> 'a unbounded_virtual_state option"
+  is "plus"
+  apply ( simp add: wf_permission_occupied_def pred_option_def Product_Type.split_paired_all del:Product_Type.split_paired_All)
+proof clarify
+  fix am ah bm bh cm ch hl f
+  assume asm0: "\<forall> hl. PosReal.ppos (am hl) \<longrightarrow> (\<exists>y. ah hl = Some y)"
+    "\<forall>hl. PosReal.ppos (bm hl) \<longrightarrow> (\<exists>y. bh hl = Some y)"
+    "(am, ah) \<oplus> (bm, bh) = Some (cm, ch)" "PosReal.ppos (fst (cm, ch) (hl, f))"
+  hence "am (hl, f) > 0 \<or>  bm (hl, f) > 0"
+    using plus_prodE preal_plusE
+    by (metis (mono_tags, lifting) add.right_neutral fst_conv gr_0_is_ppos plus_funE pperm_pnone_pgt)
+  then have "ah (hl, f) \<noteq> None \<or> bh (hl, f) \<noteq> None"
+    using asm0(1,2) gr_0_is_ppos by blast
+  then have "ch (hl, f) \<noteq> None"
+    using plus_prodE asm0(3) plus_funE
+    by (smt (verit) asso1 option_plus_None_r plus_option.simps(1) positivity split_pairs)
+  then show "\<exists>y. snd (cm, ch) (hl, f) = Some y"
+    by auto
+qed
+
+lemma compatible_unbounded_virtual_state_implies_pre_virtual_state:
+  assumes "Some x = a \<oplus> b"
+  shows "Some (Rep_unbounded_virtual_state x) = Rep_unbounded_virtual_state a \<oplus> Rep_unbounded_virtual_state b"
+  using assms apply (transfer) by (clarsimp split:bind_splits if_splits)
+
+lemma compatible_unbounded_virtual_state_implies_pre_virtual_state_rev:
+  assumes "Some (Rep_unbounded_virtual_state x) = Rep_unbounded_virtual_state a \<oplus> Rep_unbounded_virtual_state b"
+  shows "Some x = a \<oplus> b"
+  using assms apply (transfer) by (clarsimp  split:bind_splits if_splits)
+
+lemma unbounded_virtual_state_plus_None :
+  "a \<oplus> b = None \<longleftrightarrow> Rep_unbounded_virtual_state a \<oplus> Rep_unbounded_virtual_state b = None"
+  by (simp add: EquiViper.plus_unbounded_virtual_state_def)
+
+instance proof
+  fix a b c ab bc :: "'a unbounded_virtual_state"
+  let ?a = "Rep_unbounded_virtual_state a"
+  let ?b = "Rep_unbounded_virtual_state b"
+  let ?c = "Rep_unbounded_virtual_state c"
+  let ?ab = "Rep_unbounded_virtual_state ab"
+  let ?bc = "Rep_unbounded_virtual_state bc"
+
+  show "a \<oplus> b = b \<oplus> a"
+    by (simp add: commutative plus_unbounded_virtual_state_def)
+  show "a \<oplus> b = Some ab \<and> b \<oplus> c = Some bc \<Longrightarrow> ab \<oplus> c = a \<oplus> bc"
+    by (smt (verit, del_insts) compatible_unbounded_virtual_state_implies_pre_virtual_state asso1 map_fun_apply plus_unbounded_virtual_state_def)
+  show "a \<oplus> b = Some ab \<and> b \<oplus> c = None \<Longrightarrow> ab \<oplus> c = None"
+    apply (auto simp add:unbounded_virtual_state_plus_None)
+    by (metis asso2 compatible_unbounded_virtual_state_implies_pre_virtual_state)
+
+  assume asm0: "a \<oplus> b = Some c" "Some c = c \<oplus> c"
+  then show "Some a = a \<oplus> a"
+    using compatible_unbounded_virtual_state_implies_pre_virtual_state[of c c c]
+      compatible_unbounded_virtual_state_implies_pre_virtual_state[of c a b]
+      compatible_unbounded_virtual_state_implies_pre_virtual_state_rev[of a a a]
+      positivity[of "Rep_unbounded_virtual_state a" "Rep_unbounded_virtual_state b" "Rep_unbounded_virtual_state c"]
+    by fastforce
+
+qed
+
+
+(* lemma plus_bounded_downward:
+  assumes "a \<oplus> b = Some c" "is_bounded a" "is_bounded c"
+  shows "is_bounded b"
+  using assms plus_prodE[of "Rep_unbounded_virtual_state a" "Rep_unbounded_virtual_state b"]
+  apply (auto simp add: unbounded_virtual_state_plus_None compatible_unbounded_virtual_state_implies_pre_virtual_state is_bounded_def)
+  apply (auto simp add: is_bounded_def plus_unbounded_virtual_state_def wf_mask_simple_def compatible_unbounded_virtual_state_implies_pre_virtual_state)
+*)
+
+end
+  (* TODO instantiate pcm, pcm_mult and sep_algebra *)
+
+subsection \<open>Virtual equi_states\<close>
+
+
+typedef 'a virtual_state = "{ \<phi> :: 'a unbounded_virtual_state |\<phi>. is_bounded \<phi> }"
+  using wf_uuu is_bounded_def
+  by (metis Rep_unbounded_virtual_state_cases mem_Collect_eq wf_pre_virtual_state_def)
 
 setup_lifting type_definition_virtual_state
 
-definition get_vh :: "'a virtual_state \<Rightarrow> 'a partial_heap" where "get_vh \<phi> = snd (Rep_virtual_state \<phi>)"
-definition get_vm :: "'a virtual_state \<Rightarrow> preal mask" where "get_vm \<phi> = fst (Rep_virtual_state \<phi>)"
+abbreviation vs2tuple :: "'a virtual_state \<Rightarrow> 'a pre_virtual_state" where
+  "vs2tuple \<phi> \<equiv> Rep_unbounded_virtual_state (Rep_virtual_state \<phi>)"
+
+definition get_vh :: "'a virtual_state \<Rightarrow> 'a partial_heap" where "get_vh \<phi> = snd (vs2tuple \<phi>)"
+definition get_vm :: "'a virtual_state \<Rightarrow> preal mask" where "get_vm \<phi> = fst (vs2tuple \<phi>)"
 
 lemma virtual_state_ext:
   assumes "get_vh a = get_vh b"
-      and "get_vm a = get_vm b"
-    shows "a = b"
-  by (metis Rep_virtual_state_inject assms(1) assms(2) get_vh_def get_vm_def prod.expand)
+    and "get_vm a = get_vm b"
+  shows "a = b"
+  by (metis Rep_unbounded_virtual_state_inverse Rep_virtual_state_inverse assms(1,2) get_vh_def get_vm_def prod.exhaust_sel)
 
 
-
-lift_definition uu :: "'a virtual_state" is "uuu"
-  using wf_uuu by (simp add: uuu_def)
+lift_definition uu :: "'a virtual_state" is "unuu"
+  using wf_uuu
+  by (simp add: is_bounded_def unuu.rep_eq uuu_def wf_zero_mask)
 
 lemma uu_get :
   shows "get_vm uu = zero_mask" "get_vh uu = empty_heap"
-  by (simp_all add:get_vm_def get_vh_def uu.rep_eq uuu_def)
+  by (simp_all add:get_vm_def get_vh_def uu.rep_eq uuu_def unuu.rep_eq)
 
 
 
@@ -131,7 +238,8 @@ fun read_field :: "'a virtual_state \<Rightarrow> heap_loc \<Rightarrow> 'a val 
 
 lemma wf_mask_simple_get_vm [simp] :
   "wf_mask_simple (get_vm x)"
-  by (metis Rep_virtual_state get_vm_def mem_Collect_eq wf_pre_virtual_state_def)
+  using Rep_virtual_state get_vm_def is_bounded_def
+  by (metis mem_Collect_eq)
 
 lemma get_vm_bound :
   "get_vm x hl \<le> 1"
@@ -145,23 +253,8 @@ begin
 
 
 lift_definition plus_virtual_state :: "'a virtual_state \<Rightarrow> 'a virtual_state \<Rightarrow> 'a virtual_state option"
-  is "(\<lambda> st1 st2. Option.bind (st1 \<oplus> st2) (\<lambda> x. if wf_mask_simple (fst x) then Some x else None))"
-  apply (simp add: bind_split wf_pre_virtual_state_def del:Product_Type.split_paired_All)
-proof clarify
-  fix a b aa ba ab bb ac bc
-  assume asm0: "\<forall>hl. PosReal.ppos (fst (a, b) hl) \<longrightarrow> (\<exists>y. snd (a, b) hl = Some y)"
-                "\<forall>hl. PosReal.ppos (fst (aa, ba) hl) \<longrightarrow> (\<exists>y. snd (aa, ba) hl = Some y)"
-                "(a, b) \<oplus> (aa, ba) = Some (ab, bb)" "PosReal.ppos (fst (ab, bb) (ac, bc))"
-  then have "a (ac, bc) > 0 \<or> aa (ac, bc) > 0"
-    using plus_prodE preal_plusE
-    by (metis (mono_tags, lifting) add.right_neutral fst_conv gr_0_is_ppos plus_funE pperm_pnone_pgt)
-  then have "\<exists>y. b (ac, bc) = Some y \<or> ba (ac, bc) = Some y"
-    by (metis asm0(1) asm0(2) fst_conv gr_0_is_ppos snd_conv)
-  then have "\<exists>y. b (ac, bc) \<oplus> ba (ac, bc) = Some y"
-    by (metis asm0(3) plus_funE plus_prodE snd_conv)
-  then show "\<exists>y. snd (ab, bb) (ac, bc) = Some y"
-    by (smt (verit) \<open>\<exists>y. b (ac, bc) = Some y \<or> ba (ac, bc) = Some y\<close> asm0(3) option.discI option.sel plus_funE plus_option.elims plus_prodE snd_conv)
-qed
+  is "(\<lambda> st1 st2. Option.bind (st1 \<oplus> st2) (\<lambda> x. if is_bounded x then Some x else None))"
+  by (simp add: bind_split)
 
 lemma compatible_virtual_state_implies_pre_virtual_state:
   assumes "Some x = a \<oplus> b"
@@ -173,9 +266,39 @@ lemma compatible_virtual_state_implies_pre_virtual_state_rev:
   shows "Some x = a \<oplus> b"
   using assms apply (transfer) by (clarsimp simp add:wf_pre_virtual_state_def split:bind_splits if_splits)
 
+
 lemma virtual_state_plus_None :
   "a \<oplus> b = None \<longleftrightarrow> Rep_virtual_state a \<oplus> Rep_virtual_state b = None \<or> \<not> wf_mask_simple (the (get_vm a \<oplus> get_vm b))"
-  by (smt (verit) EquiViper.plus_virtual_state.rep_eq bind.bind_lunit bind_eq_None_conv fst_conv get_vm_def option.map_disc_iff plus_prod_def)
+proof (cases "Rep_virtual_state a \<oplus> Rep_virtual_state b")
+  case None
+  then show ?thesis
+    by (auto simp add: plus_virtual_state_def)
+next
+  case (Some c)
+  moreover then have "a \<oplus> b = None \<longleftrightarrow> \<not> is_bounded c"
+    by (auto simp add: plus_virtual_state_def)
+  moreover have "fst (Rep_unbounded_virtual_state c) = the (get_vm a \<oplus> get_vm b)"
+    by (simp add: Some compatible_unbounded_virtual_state_implies_pre_virtual_state[of c "Rep_virtual_state a" "Rep_virtual_state b"] get_vm_def[of b] get_vm_def[of a] plus_prodE[of "vs2tuple a" "vs2tuple b" "Rep_unbounded_virtual_state c"])
+  ultimately show ?thesis
+    by (auto simp add: plus_virtual_state_def is_bounded_def plus_prodE)
+qed
+
+lemma plus_masks_the:
+  "the ((\<pi>1 :: preal mask) \<oplus> \<pi>2) hl = \<pi>1 hl + \<pi>2 hl"
+  by (metis EquiViper.add_masks_def defined_def masks_can_always_be_added option.collapse)
+
+lemma get_vm_plus:
+  assumes "a \<oplus> b = Some ab"
+  shows "get_vm ab hl = get_vm a hl + get_vm b hl"
+proof -
+  have "Some (vs2tuple ab) = vs2tuple a \<oplus> vs2tuple b"
+    using assms compatible_virtual_state_implies_pre_virtual_state
+      compatible_unbounded_virtual_state_implies_pre_virtual_state by metis
+  then have "Some (get_vm ab) = get_vm a \<oplus> get_vm b"
+    by (metis get_vm_def plus_prodE)
+  then show ?thesis
+    using EquiViper.add_masks_def by blast
+qed
 
 instance proof
   fix a b c ab bc :: "'a virtual_state"
@@ -190,32 +313,38 @@ instance proof
   show "a \<oplus> b = Some ab \<and> b \<oplus> c = Some bc \<Longrightarrow> ab \<oplus> c = a \<oplus> bc"
     by (smt (verit, del_insts) EquiViper.compatible_virtual_state_implies_pre_virtual_state asso1 map_fun_apply plus_virtual_state_def)
   show "a \<oplus> b = Some ab \<and> b \<oplus> c = None \<Longrightarrow> ab \<oplus> c = None"
-    apply (clarsimp simp add:virtual_state_plus_None)
-    apply (safe)
-     apply (metis EquiViper.compatible_virtual_state_implies_pre_virtual_state asso2 option.discI)
-  proof -
-    fix aa ba
-    assume asm0: "a \<oplus> b = Some ab" "wf_mask_simple (the (get_vm ab \<oplus> get_vm c))"
-       "Rep_virtual_state ab \<oplus> Rep_virtual_state c = Some (aa, ba)" "\<not> wf_mask_simple (the (get_vm b \<oplus> get_vm c))"
-    then obtain hl where "the (get_vm b \<oplus> get_vm c) hl > 1"
-      by (meson not_less wf_mask_simple_def)
-    then have "get_vm b hl + get_vm c hl > 1"
-      by (smt (verit, ccfv_SIG) SepAlgebra.plus_preal_def option.sel plus_funI plus_fun_def)
-    moreover have "the (get_vm ab \<oplus> get_vm c) hl \<ge> get_vm ab hl + get_vm c hl"
-      by (metis (no_types, lifting) EquiViper.add_masks_def asm0(3) get_vm_def nle_le option.sel plus_prodE)
-    moreover have "get_vm ab hl \<ge> get_vm b hl"
-      by (metis (no_types, lifting) EquiViper.add_masks_def EquiViper.compatible_virtual_state_implies_pre_virtual_state \<open>a \<oplus> b = b \<oplus> a\<close> asm0(1) get_vm_def plus_prodE pos_perm_class.sum_larger)      
-    moreover have "the (get_vm ab \<oplus> get_vm c) hl \<le> 1"
-      using asm0(2) wf_mask_simple_def by blast
-    ultimately show False
-      by (simp add: leD less_eq_preal.rep_eq plus_preal.rep_eq)
+  proof (elim conjE)
+    assume ab: "a \<oplus> b = Some ab" and bc: "b \<oplus> c = None"
+    have ab_rep: "?a \<oplus> ?b = Some ?ab"
+      using ab compatible_virtual_state_implies_pre_virtual_state by metis
+    from bc consider (rep) "?b \<oplus> ?c = None" | (unbounded) "\<not> wf_mask_simple (the (get_vm b \<oplus> get_vm c))"
+      by (auto simp add: virtual_state_plus_None)
+    then show "ab \<oplus> c = None"
+    proof cases
+      case rep
+      then show ?thesis
+        using ab_rep asso2 virtual_state_plus_None by blast
+    next
+      case unbounded
+      then obtain hl where "\<not> pwrite \<ge> the (get_vm b \<oplus> get_vm c) hl"
+        by (meson wf_mask_simple_def)
+      moreover have "the (get_vm b \<oplus> get_vm c) hl \<le> the (get_vm ab \<oplus> get_vm c) hl"
+        unfolding plus_masks_the get_vm_plus[OF ab]
+        by (metis add.assoc add.commute pos_perm_class.sum_larger)
+      ultimately have "\<not> wf_mask_simple (the (get_vm ab \<oplus> get_vm c))"
+        by (meson order.trans wf_mask_simple_def)
+      then show ?thesis
+        by (simp add: virtual_state_plus_None)
+    qed
   qed
-  assume asm0: "a \<oplus> b = Some c" "Some c = c \<oplus> c"
-  then have "Some ?c = ?a \<oplus> ?b \<and> Some ?c = ?c \<oplus> ?c"
-    by (metis compatible_virtual_state_implies_pre_virtual_state)
-  then show "Some a = a \<oplus> a"
-    by (metis compatible_virtual_state_implies_pre_virtual_state_rev positivity)
 
+  assume "a \<oplus> b = Some c" "Some c = c \<oplus> c"
+  then show "Some a = a \<oplus> a"
+    using compatible_virtual_state_implies_pre_virtual_state[of c c c]
+      compatible_virtual_state_implies_pre_virtual_state[of c a b]
+      compatible_virtual_state_implies_pre_virtual_state_rev[of a a a]
+      positivity[of ?a ?b ?c]
+    by fastforce
 qed
 
 end
@@ -274,7 +403,7 @@ abbreviation get_h where "get_h \<omega> \<equiv> get_vh (get_state \<omega>)"
 abbreviation get_m where "get_m \<omega> \<equiv> get_vm (get_state \<omega>)"
 
 
-fun get_pv :: "'a equi_state \<Rightarrow> 'a pre_virtual_state" where "get_pv \<omega> = Rep_virtual_state (get_state \<omega>)"
+fun get_pv :: "'a equi_state \<Rightarrow> 'a pre_virtual_state" where "get_pv \<omega> = vs2tuple (get_state \<omega>)"
 
 definition shift_and_add_equi_state where
   "shift_and_add_equi_state \<omega> x = set_store \<omega> (shift_and_add (get_store \<omega>) x)"
@@ -285,7 +414,7 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
   ("_ \<turnstile> ((\<langle>_;_\<rangle>) [\<Down>] _)" [51,0,0,0] 81)
   and red_pure_exps :: "('v, ('v virtual_state)) interp \<Rightarrow> 'v equi_state \<Rightarrow> pure_exp list \<Rightarrow> 'v val list \<Rightarrow> bool"
   where
-  RedPureExps: "\<lbrakk> list_all2 (\<lambda>e v. c \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v) exps vals \<rbrakk> \<Longrightarrow> red_pure_exps c \<omega> exps vals"
+    RedPureExps: "\<lbrakk> list_all2 (\<lambda>e v. c \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v) exps vals \<rbrakk> \<Longrightarrow> red_pure_exps c \<omega> exps vals"
 
 \<comment>\<open>Independent of SA\<close>
 | RedLit: "\<Delta> \<turnstile> \<langle>ELit l; _\<rangle> [\<Down>] Val (val_of_lit l)"
@@ -294,10 +423,10 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 | RedUnop: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v ; eval_unop unop v = BinopNormal v' \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Unop unop e; \<omega>\<rangle> [\<Down>] Val v'"
 
 | RedBinopLazy: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; eval_binop_lazy v1 bop = Some v \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] Val v"
+    \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] Val v"
 
 | RedBinop: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; \<Delta> \<turnstile> \<langle>e2; \<omega>\<rangle> [\<Down>] Val v2 ; eval_binop v1 bop v2 = BinopNormal v \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] Val v"
+    \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] Val v"
 
 | RedOld: "\<lbrakk> get_trace \<omega> l = Some \<phi> ; \<Delta> \<turnstile> \<langle>e; set_state \<omega> \<phi>\<rangle> [\<Down>] v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Old l e; \<omega>\<rangle> [\<Down>] v" (* Implicitly propagates failures *)
 
@@ -305,25 +434,25 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 
 
 | RedExistsTrue: "\<lbrakk> v \<in> set_from_type (domains \<Delta>) ty ;
-  \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] Val (VBool True) ;
-  \<And>v'. v' \<in> set_from_type (domains \<Delta>) ty \<Longrightarrow> \<exists>b. \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v'\<rangle> [\<Down>] Val (VBool b) \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] Val (VBool True)"
+    \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] Val (VBool True) ;
+    \<And>v'. v' \<in> set_from_type (domains \<Delta>) ty \<Longrightarrow> \<exists>b. \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v'\<rangle> [\<Down>] Val (VBool b) \<rbrakk>
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] Val (VBool True)"
 
 
 | RedExistsFalse: "\<lbrakk> \<And>v. v \<in> set_from_type (domains \<Delta>) ty \<longrightarrow> \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] Val (VBool False) \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] Val (VBool False)"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] Val (VBool False)"
 | RedForallTrue: "\<lbrakk> \<And>v. v \<in> set_from_type (domains \<Delta>) ty \<longrightarrow> \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] Val (VBool True) \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>PForall ty e; \<omega>\<rangle> [\<Down>] Val (VBool True)"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>PForall ty e; \<omega>\<rangle> [\<Down>] Val (VBool True)"
 | RedForallFalse: "\<lbrakk> v \<in> set_from_type (domains \<Delta>) ty ;
-    \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] Val (VBool False);
-    \<And>v'. v' \<in> set_from_type (domains \<Delta>) ty \<Longrightarrow> \<exists>b. \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v'\<rangle> [\<Down>] Val (VBool b) \<rbrakk>
+\<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] Val (VBool False);
+\<And>v'. v' \<in> set_from_type (domains \<Delta>) ty \<Longrightarrow> \<exists>b. \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v'\<rangle> [\<Down>] Val (VBool b) \<rbrakk>
 
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>PForall ty e; \<omega>\<rangle> [\<Down>] Val (VBool False)"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>PForall ty e; \<omega>\<rangle> [\<Down>] Val (VBool False)"
 | RedCondExpTrue: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val (VBool True) ; \<Delta> \<turnstile> \<langle>e2; \<omega>\<rangle> [\<Down>] r \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>CondExp e1 e2 e3; \<omega>\<rangle> [\<Down>] r"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>CondExp e1 e2 e3; \<omega>\<rangle> [\<Down>] r"
 
 | RedCondExpFalse: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val (VBool False) ; \<Delta> \<turnstile> \<langle>e3; \<omega>\<rangle> [\<Down>] r \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>CondExp e1 e2 e3; \<omega>\<rangle> [\<Down>] r"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>CondExp e1 e2 e3; \<omega>\<rangle> [\<Down>] r"
 | RedPermNull: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef Null) \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Perm e f; \<omega>\<rangle> [\<Down>] Val (VPerm 0)"
 
 | RedResult: "\<lbrakk> get_store \<omega> 0 = Some v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Result; \<omega>\<rangle> [\<Down>] Val v"
@@ -331,14 +460,14 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 
 
 | RedBinopRightFailure: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; \<Delta> \<turnstile> \<langle>e2; \<omega>\<rangle> [\<Down>] VFailure ;  eval_binop_lazy v1 bop = None \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] VFailure"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] VFailure"
 | RedBinopFailure: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; \<Delta> \<turnstile> \<langle>e2; \<omega>\<rangle> [\<Down>] Val v2 ; eval_binop v1 bop v2 = BinopOpFailure ; eval_binop_lazy v1 bop = None \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] VFailure" (* Division by 0 *)
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] VFailure" (* Division by 0 *)
 | RedOldFailure: "\<lbrakk> get_trace \<omega> l = None \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Old l e ; \<omega>\<rangle> [\<Down>] VFailure"
 | RedExistsFailure: "\<lbrakk> v \<in> set_from_type (domains \<Delta>) ty; \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] VFailure \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] VFailure"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] VFailure"
 | RedForallFailure: "\<lbrakk> v \<in> set_from_type (domains \<Delta>) ty; \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] VFailure \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>PForall ty e; \<omega>\<rangle> [\<Down>] VFailure"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>PForall ty e; \<omega>\<rangle> [\<Down>] VFailure"
 | RedPropagateFailure: "\<lbrakk> e \<in> sub_pure_exp e' ; \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] VFailure \<rbrakk> \<Longrightarrow>  \<Delta> \<turnstile> \<langle>e'; \<omega>\<rangle> [\<Down>] VFailure"
 
 
@@ -347,9 +476,9 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 | RedField: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a)) ; read_field (get_state \<omega>) (a, f) = Some v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>FieldAcc e f; \<omega>\<rangle> [\<Down>] Val v"
 
 | RedFunApp: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_state \<omega>) = Some v \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] Val v"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] Val v"
 | RedFunAppFailure: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_state \<omega>) = None \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] VFailure"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] VFailure"
 
 
 (*
@@ -360,9 +489,9 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 
 (*
 | RedUnfolding: "\<lbrakk> red_pure_exps \<Delta> (\<sigma>, \<tau>, \<phi>) exps vals ; unfold_pure \<phi> (P, vals) = Some \<phi>' ; \<Delta> \<turnstile> \<langle>e; (\<sigma>, \<tau>, \<phi>')\<rangle> [\<Down>] r \<rbrakk>
-   \<Longrightarrow> \<Delta> \<turnstile> \<langle>Unfolding P exps e; (\<sigma>, \<tau>, \<phi>)\<rangle> [\<Down>] r"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>Unfolding P exps e; (\<sigma>, \<tau>, \<phi>)\<rangle> [\<Down>] r"
 | RedUnfoldingFail: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; unfold_pure (get_state \<omega>) (P, vals) = None \<rbrakk>
-  \<Longrightarrow> \<Delta> \<turnstile> \<langle>Unfolding P exps e; \<omega>\<rangle> [\<Down>] VFailure"
+\<Longrightarrow> \<Delta> \<turnstile> \<langle>Unfolding P exps e; \<omega>\<rangle> [\<Down>] VFailure"
 *)
 *)
 
@@ -405,9 +534,9 @@ text \<open>The following lemma proves that the meaning of pure expressions is i
 
 lemma red_pure_indep_interp_pred:
   assumes "funs \<Delta> = funs \<Delta>'"
-      and "domains \<Delta> = domains \<Delta>'"
-    shows "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] v \<Longrightarrow> \<Delta>' \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] v"
-      and "red_pure_exps \<Delta> \<omega> exps vals \<Longrightarrow> red_pure_exps \<Delta>' \<omega> exps vals"
+    and "domains \<Delta> = domains \<Delta>'"
+  shows "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] v \<Longrightarrow> \<Delta>' \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] v"
+    and "red_pure_exps \<Delta> \<omega> exps vals \<Longrightarrow> red_pure_exps \<Delta>' \<omega> exps vals"
   using assms
 proof (induct rule: red_pure_red_pure_exps.inducts)
   case (RedPureExps c \<omega> exps vals)
@@ -520,25 +649,25 @@ definition wd_pure_set :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_ex
 
 fun red_pure_bool where
   "red_pure_bool \<Delta> e \<omega> = (if wd_pure \<Delta> e \<omega> then
-  if \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VBool True) then Some True else Some False
-  else None)"
+if \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VBool True) then Some True else Some False
+else None)"
 
 inductive red_atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp atomic_assert \<Rightarrow> 'v equi_state \<Rightarrow> bool option \<Rightarrow> bool" where
 
-  RedAtomicPure: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VBool b)) \<rbrakk> \<Longrightarrow> red_atomic_assert \<Delta> (Pure e) \<omega> (Some b)"
+RedAtomicPure: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VBool b)) \<rbrakk> \<Longrightarrow> red_atomic_assert \<Delta> (Pure e) \<omega> (Some b)"
 
 \<comment>\<open>acc(e.f, p)\<close>
 | RedAtomicAcc: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VRef r)) ; red_pure \<Delta> p \<omega> (Val (VPerm v)) ; v > 0 \<rbrakk>
-  \<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> (Some (is_address r \<and> get_m \<omega> (the_address r, f) \<ge> Abs_preal v))"
+\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> (Some (is_address r \<and> get_m \<omega> (the_address r, f) \<ge> Abs_preal v))"
 | RedAtomicAccZero: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VRef _)) ; red_pure \<Delta> p \<omega> (Val (VPerm 0)) \<rbrakk>
-  \<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> (Some True)"
+\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> (Some True)"
 
 | RedAtomicAccWildcard: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VRef (Address a))) \<rbrakk>
-  \<Longrightarrow> red_atomic_assert \<Delta> (Acc e f Wildcard) \<omega> (Some (get_m \<omega> (a, f) > 0))"
+\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f Wildcard) \<omega> (Some (get_m \<omega> (a, f) > 0))"
 | RedAtomicAccWildcardNull: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VRef Null)) \<rbrakk>
-  \<Longrightarrow> red_atomic_assert \<Delta> (Acc e f Wildcard) \<omega> (Some False)"
+\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f Wildcard) \<omega> (Some False)"
 | RedAtomicAccNeg: "\<lbrakk> red_pure \<Delta> p \<omega> (Val (VPerm v)) ; v < 0 \<rbrakk>
-  \<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> None"
+\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> None"
 
 \<comment>\<open>acc(P(exps), p)\<close>
 (*
@@ -547,12 +676,12 @@ inductive red_atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> pu
 | RedAtomicPredWildcard: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (predicates \<Delta>) (P, vals) = Some A \<rbrakk>
 \<Longrightarrow> red_atomic_assert \<Delta> (AccPredicate P exps Wildcard) \<omega> (Some (\<exists>a \<in> A. \<exists>\<alpha>. \<alpha> > 0 \<and> get_state \<omega> = \<alpha> \<odot> a))"
 | RedAtomicPredNeg: "\<lbrakk> red_pure \<Delta> p \<omega> (Val (VPerm v)) ; v < 0 \<rbrakk>
-  \<Longrightarrow> red_atomic_assert \<Delta> (AccPredicate P exps (PureExp p)) \<omega> None"
+\<Longrightarrow> red_atomic_assert \<Delta> (AccPredicate P exps (PureExp p)) \<omega> None"
 *)
 
 (*
 | RedAtomicPredNone: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; red_pure \<Delta> p \<omega> (Val (VPerm v)) ; v \<ge> 0 ;
-  footprint_predicate (get_state \<omega>) (P, vals) (rat_to_b v) = None \<rbrakk>
+footprint_predicate (get_state \<omega>) (P, vals) (rat_to_b v) = None \<rbrakk>
 \<Longrightarrow> red_atomic_assert \<Delta> (AccPredicate P exps (PureExp p)) \<omega> (Some (v = 0))"
 | RedAtomicPredWildcardNone: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; footprint_predicate (get_state \<omega>) (P, vals) f = None \<rbrakk>
 \<Longrightarrow> red_atomic_assert \<Delta> (AccPredicate P exps Wildcard) \<omega> (Some False)"
@@ -564,19 +693,19 @@ lemma no_old_indep_trace:
   and       "fst x = fst x'" and
         "get_state x = get_state x'"
   shows "e x = Some v \<longleftrightarrow> e x' = Some v"
-  
+
 *)
 
 
 fun sat :: "('a, 'a virtual_state) interp
-     \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state \<Rightarrow> bool"
+\<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state \<Rightarrow> bool"
 
 (* :: "'c \<Rightarrow> ('p, 'i) assert \<Rightarrow> 'a \<Rightarrow> bool" *) ("_ \<Turnstile> ((\<langle>_;_\<rangle>))" [52,0,0] 84) where
-  "\<Delta> \<Turnstile> \<langle>Atomic A; \<omega>\<rangle> \<longleftrightarrow> red_atomic_assert \<Delta> A \<omega> (Some True)"
+"\<Delta> \<Turnstile> \<langle>Atomic A; \<omega>\<rangle> \<longleftrightarrow> red_atomic_assert \<Delta> A \<omega> (Some True)"
 | "sat \<Delta> (Imp b A) \<omega> \<longleftrightarrow>  (\<exists>v. (\<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val v) \<and> (v = VBool True \<longrightarrow> (\<Delta> \<Turnstile> \<langle>A; \<omega>\<rangle>)))"
-| "(\<Delta> \<Turnstile> \<langle>CondAssert b A B; \<omega>\<rangle>) \<longleftrightarrow> (\<exists>v. (\<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val v) \<and> (v = VBool True  \<longrightarrow> (\<Delta> \<Turnstile> \<langle>A; \<omega>\<rangle>)) \<and> 
-                                                                  (v = VBool False \<longrightarrow> (\<Delta> \<Turnstile> \<langle>B; \<omega>\<rangle>))
-                                    )"
+| "(\<Delta> \<Turnstile> \<langle>CondAssert b A B; \<omega>\<rangle>) \<longleftrightarrow> (\<exists>v. (\<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val v) \<and> (v = VBool True  \<longrightarrow> (\<Delta> \<Turnstile> \<langle>A; \<omega>\<rangle>)) \<and>
+(v = VBool False \<longrightarrow> (\<Delta> \<Turnstile> \<langle>B; \<omega>\<rangle>))
+)"
 | "(\<Delta> \<Turnstile> \<langle>A && B; \<omega>\<rangle>) \<longleftrightarrow> (\<exists>a b. ((Some \<omega> = a \<oplus> b) \<and> (\<Delta> \<Turnstile> \<langle>A; a\<rangle>) \<and> (\<Delta> \<Turnstile> \<langle>B; b\<rangle>)))"
 | "(\<Delta> \<Turnstile> \<langle>A --* B; \<omega>\<rangle>) \<longleftrightarrow> (\<forall>b a. Some b = \<omega> \<oplus> a \<and> (\<Delta> \<Turnstile> \<langle>A; a\<rangle>) \<longrightarrow> (\<Delta> \<Turnstile> \<langle>B; b\<rangle>))"
 | "\<Delta> \<Turnstile> \<langle>ForAll ty A; \<omega>\<rangle> \<longleftrightarrow> (\<forall>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)"
@@ -587,7 +716,7 @@ fun sat :: "('a, 'a virtual_state) interp
 
 (*
 | "c \<Turnstile> \<langle>ForAll ty A; \<omega>\<rangle> \<longleftrightarrow> (\<forall>l. finite_sublist (set_from_type c ty) l \<and> length l \<ge> 1 \<longrightarrow>
-  (\<exists>part. multi_plus part \<omega> \<and> length l = length part \<and> list_all2 (\<lambda>v a. (c \<Turnstile> \<langle>A; shift_and_add_equi_state a v\<rangle>)) l part))"
+(\<exists>part. multi_plus part \<omega> \<and> length l = length part \<and> list_all2 (\<lambda>v a. (c \<Turnstile> \<langle>A; shift_and_add_equi_state a v\<rangle>)) l part))"
 *)
 
 
@@ -611,8 +740,8 @@ fun wf_assertion where
 
 lemma predicate_body_good_case:
   assumes "program.predicates Pr p = Some P"
-      and "predicate_decl.body P = Some A"
-    shows "predicate_body Pr p = A"
+    and "predicate_decl.body P = Some A"
+  shows "predicate_body Pr p = A"
   using assms predicate_body_def
   by simp
 
@@ -640,9 +769,9 @@ subsection \<open>Normal states\<close>
 
 lemma full_state_ext:
   assumes "get_store a = get_store b"
-      and "get_state a = get_state b"
-      and "get_trace a = get_trace b"
-    shows "a = b"
+    and "get_state a = get_state b"
+    and "get_trace a = get_trace b"
+  shows "a = b"
   by (metis agreement.exhaust_sel assms get_state_def get_store_def get_trace_def prod_eqI)
 
 lemma abs_state_ext_iff :

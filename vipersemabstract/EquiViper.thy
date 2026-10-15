@@ -124,8 +124,9 @@ definition is_bounded :: "  'a unbounded_virtual_state \<Rightarrow> bool" where
   "is_bounded \<phi> = wf_mask_simple (fst (Rep_unbounded_virtual_state \<phi>))"
 
 
-definition get_uvh :: "'a unbounded_virtual_state \<Rightarrow> 'a partial_heap" where "get_uvh \<phi> = snd (Rep_unbounded_virtual_state \<phi>)"
+lift_definition get_uvh :: "'a unbounded_virtual_state \<Rightarrow> 'a partial_heap" is "snd" .
 definition get_uvm :: "'a unbounded_virtual_state \<Rightarrow> preal mask" where "get_uvm \<phi> = fst (Rep_unbounded_virtual_state \<phi>)"
+
 instantiation unbounded_virtual_state :: (type) pcm
 begin
 
@@ -199,7 +200,43 @@ qed
 *)
 
 end
-  (* TODO instantiate pcm, pcm_mult and sep_algebra *)
+
+lemma get_uvh_mono:
+  assumes "\<phi>2 \<succeq> \<phi>1"
+    and "get_uvh \<phi>1 hl = Some v"
+  shows "get_uvh \<phi>2 hl = Some v"
+proof -
+  obtain \<phi>0 where "Some \<phi>2 = \<phi>1 \<oplus> \<phi>0"
+    using assms(1) greater_def by auto
+  then have "Some (Rep_unbounded_virtual_state \<phi>2) = Rep_unbounded_virtual_state \<phi>1 \<oplus> Rep_unbounded_virtual_state \<phi>0"
+    by (rule compatible_unbounded_virtual_state_implies_pre_virtual_state)
+  then have "Rep_unbounded_virtual_state \<phi>2 \<succeq> Rep_unbounded_virtual_state \<phi>1"
+    using greater_def by auto
+  then have "snd (Rep_unbounded_virtual_state \<phi>2) \<succeq> snd (Rep_unbounded_virtual_state \<phi>1)"
+    by (simp add: greater_prod_eq)
+  then have "get_uvh \<phi>2 \<succeq> get_uvh \<phi>1"
+    by (simp add: get_uvh.rep_eq)
+  then have "get_uvh \<phi>2 hl \<succeq> get_uvh \<phi>1 hl"
+    by (simp add: greaterE)
+  then obtain vo where "Some (get_uvh \<phi>2 hl) = vo \<oplus> Some v"
+    using assms(2) greater_equiv by auto
+  then show ?thesis
+  proof (cases vo)
+    case None
+    then show ?thesis
+      using \<open>Some (get_uvh \<phi>2 hl) = vo \<oplus> Some v\<close> by auto
+  next
+    case (Some v')
+    then obtain v0 where "get_uvh \<phi>2 hl = Some v0" "Some v0 = v' \<oplus> v"
+      by (metis (full_types) \<open>Some (get_uvh \<phi>2 hl) = vo \<oplus> Some v\<close> option.distinct(1) option.sel plus_option.simps(3) plus_val_def)
+    moreover have "v0 = v"
+      by (metis calculation(2) option.discI option.inject plus_val_def)
+    ultimately show ?thesis
+      by simp
+  qed
+qed
+
+(* TODO instantiate pcm, pcm_mult and sep_algebra *)
 
 subsection \<open>Virtual equi_states\<close>
 
@@ -213,14 +250,15 @@ setup_lifting type_definition_virtual_state
 abbreviation vs2tuple :: "'a virtual_state \<Rightarrow> 'a pre_virtual_state" where
   "vs2tuple \<phi> \<equiv> Rep_unbounded_virtual_state (Rep_virtual_state \<phi>)"
 
-definition get_vh :: "'a virtual_state \<Rightarrow> 'a partial_heap" where "get_vh \<phi> = snd (vs2tuple \<phi>)"
-definition get_vm :: "'a virtual_state \<Rightarrow> preal mask" where "get_vm \<phi> = fst (vs2tuple \<phi>)"
+lift_definition get_vh :: "'a virtual_state \<Rightarrow> 'a partial_heap" is "get_uvh" .
+
+lift_definition get_vm :: "'a virtual_state \<Rightarrow> preal mask" is "get_uvm" .
 
 lemma virtual_state_ext:
   assumes "get_vh a = get_vh b"
     and "get_vm a = get_vm b"
   shows "a = b"
-  by (metis Rep_unbounded_virtual_state_inverse Rep_virtual_state_inverse assms(1,2) get_vh_def get_vm_def prod.exhaust_sel)
+  by (metis Rep_unbounded_virtual_state_inverse Rep_virtual_state_inverse assms(1,2) get_vh.rep_eq get_vm.rep_eq get_uvh.rep_eq get_uvm_def prod.exhaust_sel)
 
 
 lift_definition uu :: "'a virtual_state" is "unuu"
@@ -229,16 +267,16 @@ lift_definition uu :: "'a virtual_state" is "unuu"
 
 lemma uu_get :
   shows "get_vm uu = zero_mask" "get_vh uu = empty_heap"
-  by (simp_all add:get_vm_def get_vh_def uu.rep_eq uuu_def unuu.rep_eq)
+  by (simp_all add:get_vm.rep_eq get_vh.rep_eq get_uvm_def get_uvh.rep_eq uu.rep_eq uuu_def unuu.rep_eq)
 
 
 
-fun read_field :: "'a virtual_state \<Rightarrow> heap_loc \<Rightarrow> 'a val option"
-  where "read_field \<phi> loc = get_vh \<phi> loc"
+fun read_field :: "'a unbounded_virtual_state \<Rightarrow> heap_loc \<Rightarrow> 'a val option"
+  where "read_field \<phi> loc = get_uvh \<phi> loc"
 
 lemma wf_mask_simple_get_vm [simp] :
   "wf_mask_simple (get_vm x)"
-  using Rep_virtual_state get_vm_def is_bounded_def
+  using Rep_virtual_state get_vm.rep_eq get_uvm_def is_bounded_def
   by (metis mem_Collect_eq)
 
 lemma get_vm_bound :
@@ -278,7 +316,7 @@ next
   moreover then have "a \<oplus> b = None \<longleftrightarrow> \<not> is_bounded c"
     by (auto simp add: plus_virtual_state_def)
   moreover have "fst (Rep_unbounded_virtual_state c) = the (get_vm a \<oplus> get_vm b)"
-    by (simp add: Some compatible_unbounded_virtual_state_implies_pre_virtual_state[of c "Rep_virtual_state a" "Rep_virtual_state b"] get_vm_def[of b] get_vm_def[of a] plus_prodE[of "vs2tuple a" "vs2tuple b" "Rep_unbounded_virtual_state c"])
+    by (simp add: Some compatible_unbounded_virtual_state_implies_pre_virtual_state[of c "Rep_virtual_state a" "Rep_virtual_state b"] get_vm.rep_eq[of b] get_vm.rep_eq[of a] get_uvm_def plus_prodE[of "vs2tuple a" "vs2tuple b" "Rep_unbounded_virtual_state c"])
   ultimately show ?thesis
     by (auto simp add: plus_virtual_state_def is_bounded_def plus_prodE)
 qed
@@ -295,7 +333,7 @@ proof -
     using assms compatible_virtual_state_implies_unbounded_virtual_state
       compatible_unbounded_virtual_state_implies_pre_virtual_state by metis
   then have "Some (get_vm ab) = get_vm a \<oplus> get_vm b"
-    by (metis get_vm_def plus_prodE)
+    by (metis get_vm.rep_eq get_uvm_def plus_prodE)
   then show ?thesis
     using EquiViper.add_masks_def by blast
 qed
@@ -348,6 +386,25 @@ instance proof
 qed
 
 end
+
+lemma Rep_virtual_state_mono:
+  assumes "\<phi>2 \<succeq> \<phi>1"
+  shows "Rep_virtual_state \<phi>2 \<succeq> Rep_virtual_state \<phi>1"
+proof -
+  obtain \<phi>0 where "Some \<phi>2 = \<phi>1 \<oplus> \<phi>0"
+    using assms greater_def by auto
+  then have "Some (Rep_virtual_state \<phi>2) = Rep_virtual_state \<phi>1 \<oplus> Rep_virtual_state \<phi>0"
+    by (rule compatible_virtual_state_implies_unbounded_virtual_state)
+  then show ?thesis
+    using greater_def by auto
+qed
+
+lemma get_vh_mono:
+  assumes "\<phi>2 \<succeq> \<phi>1"
+    and "get_vh \<phi>1 hl = Some v"
+  shows "get_vh \<phi>2 hl = Some v"
+  using assms(2) get_uvh_mono[OF Rep_virtual_state_mono[OF assms(1)]]
+  by (simp add: get_vh.rep_eq)
 
 subsection \<open>Normal equi_states\<close>
 
@@ -473,7 +530,7 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 
 
 (* Dependent on the parameters *)
-| RedField: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a)) ; read_field (get_state \<omega>) (a, f) = Some v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>FieldAcc e f; \<omega>\<rangle> [\<Down>] Val v"
+| RedField: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a)) ; read_field (Rep_virtual_state (get_state \<omega>)) (a, f) = Some v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>FieldAcc e f; \<omega>\<rangle> [\<Down>] Val v"
 
 | RedFunApp: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_state \<omega>) = Some v \<rbrakk>
 \<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] Val v"

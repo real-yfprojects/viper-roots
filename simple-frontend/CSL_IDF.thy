@@ -1664,7 +1664,7 @@ lemma read_helper:
   assumes "Some \<omega>' = \<omega> \<oplus> \<omega>f"
       and "get_vh \<omega> l = Some v"
     shows "get_vh \<omega>' l = Some v"
-  by (metis assms(1) assms(2) commutative greater_equiv read_field.elims read_field_mono)
+  by (metis assms(1) assms(2) commutative greater_equiv get_vh_mono)
 
 
 

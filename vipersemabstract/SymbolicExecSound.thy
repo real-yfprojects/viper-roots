@@ -24,7 +24,7 @@ lemma s2a_heap_typed_conc_incl :
   assumes "ch \<succeq> ch'"
   shows "s2a_heap_typed F (get_vh ch')"
   using assms apply (simp add:s2a_heap_typed_def heap_typed_def)
-  by (metis read_field.elims read_field_mono)
+  by (metis get_vh_mono)
 
 section \<open>basic definitions\<close>
 

@@ -244,7 +244,7 @@ proof (cases "get_vh x hl")
 next
   case (Some a)
   then have "a = v"
-    by (metis assms(1) assms(2) greater_def option.inject read_field.elims read_field_mono)
+    by (metis assms(1) assms(2) greater_def option.inject get_vh_mono)
   then show ?thesis
     using Some by fastforce
 qed
@@ -353,7 +353,7 @@ lemma well_typed_heap_smaller:
   assumes "a \<succeq> b"
       and "Instantiation.well_typed_heap \<Gamma> a"
     shows "Instantiation.well_typed_heap \<Gamma> b"
-  by (metis heap_typed_def assms(1) assms(2) read_field.elims read_field_mono)
+  by (metis heap_typed_def assms(1) assms(2) get_vh_mono)
 
 lemma well_typed_heap_core:
   "Instantiation.well_typed_heap \<Gamma> x = Instantiation.well_typed_heap \<Gamma> |x|"
@@ -608,7 +608,7 @@ qed
 lemma stabilize_value_persists:
   assumes "get_h (stabilize \<omega>) l = Some v"
   shows "get_h \<omega> l = Some v"
-  by (metis (no_types, lifting) assms greater_state_has_greater_parts(3) max_projection_propE(1) max_projection_prop_stable_stabilize read_field.elims read_field_mono)
+  by (metis (no_types, lifting) assms greater_state_has_greater_parts(3) max_projection_propE(1) max_projection_prop_stable_stabilize get_vh_mono)
 
 lemma get_vm_stabilize[simp]:
   "get_vm (stabilize \<omega>) = get_vm \<omega>"

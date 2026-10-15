@@ -210,45 +210,7 @@ lemma read_field_mono:
   assumes "\<phi>2 \<succeq> \<phi>1"
     and "read_field \<phi>1 hl = Some v"
   shows "read_field \<phi>2 hl = Some v"
-proof -
-  let ?h1 = "snd (vs2tuple \<phi>1)"
-  let ?h2 = "snd (vs2tuple \<phi>2)"
-  have "vs2tuple \<phi>2 \<succeq> vs2tuple \<phi>1"
-  proof -
-    obtain \<phi>0 where "Some \<phi>2 = \<phi>1 \<oplus> \<phi>0"
-      using assms(1) greater_def by auto
-    then have "Some (vs2tuple \<phi>2) = vs2tuple \<phi>1 \<oplus> vs2tuple \<phi>0"
-      by (auto simp add: compatible_virtual_state_implies_unbounded_virtual_state)
-    then show ?thesis
-      using greater_def by auto
-  qed
-  then have "?h2 \<succeq> ?h1"
-    by (simp add: greater_prod_eq)
-  then have "?h2 hl \<succeq> ?h1 hl"
-    by (simp add: greaterE)
-  moreover have "read_field \<phi>1 hl = ?h1 hl"
-    by (simp add: get_vh_def)
-  moreover have "read_field \<phi>2 hl = ?h2 hl"
-    by (simp add: get_vh_def)
-  ultimately have "read_field \<phi>2 hl \<succeq> read_field \<phi>1 hl"
-    by simp
-  then obtain vo where "Some (read_field \<phi>2 hl) = vo \<oplus> Some v"
-    using assms(2) greater_equiv by auto
-  then show ?thesis
-  proof (cases vo)
-    case None
-    then show ?thesis
-      using \<open>Some (read_field \<phi>2 hl) = vo \<oplus> Some v\<close> by auto
-  next
-    case (Some v')
-    then obtain v0 where "read_field \<phi>2 hl = Some v0" "Some v0 = v' \<oplus> v"
-      by (metis (full_types) \<open>Some (read_field \<phi>2 hl) = vo \<oplus> Some v\<close> option.distinct(1) option.sel plus_option.simps(3) plus_val_def)
-    moreover have "v0 = v"
-      by (metis calculation(2) option.discI option.inject plus_val_def)
-    ultimately show ?thesis
-      by simp
-  qed
-qed
+  using assms get_uvh_mono by simp
 
 lemma vstate_wf_imp:
   "get_vm \<omega> hl > 0 \<Longrightarrow> get_vh \<omega> hl \<noteq> None"
@@ -470,7 +432,7 @@ next
     using RedResult2Val_case by fastforce
 next
   case (RedField \<Delta> e \<omega> a f v)
-  then obtain a' where "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a'))" "read_field (get_state \<omega>) (a', f) = Some v2" using RedAccField2Val_case
+  then obtain a' where "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a'))" "read_field (Rep_virtual_state (get_state \<omega>)) (a', f) = Some v2" using RedAccField2Val_case
     by (metis read_field.elims)
   moreover have "a' = a"
     using RedField.hyps(2) calculation(1) by auto
@@ -1581,7 +1543,7 @@ lemma get_vh_Some_greater :
   assumes "\<omega>' \<succeq> \<omega>"
   shows "get_vh (get_state \<omega>') hl = Some v"
   using assms
-  by (metis greater_state_has_greater_parts(3) read_field.elims read_field_mono)
+  by (metis greater_state_has_greater_parts(3) get_vh_mono)
 
 lemma red_pure_core_ind :
   assumes "\<And> f vals st. interp.funs \<Delta> f vals st = interp.funs \<Delta> f vals |st|"

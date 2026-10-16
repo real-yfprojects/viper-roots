@@ -206,34 +206,9 @@ lemma shift_and_add_keep_vstate[simp]:
   using shift_and_add_equi_state_def
   by (metis get_state_set_store)
 
-lemma read_field_mono:
-  assumes "\<phi>2 \<succeq> \<phi>1"
-    and "read_field \<phi>1 hl = Some v"
-  shows "read_field \<phi>2 hl = Some v"
-  using assms get_uvh_mono by simp
-
 lemma vstate_wf_imp:
   "get_vm \<omega> hl > 0 \<Longrightarrow> get_vh \<omega> hl \<noteq> None"
-proof -
-  let ?w = "vs2tuple \<omega>"
-  let ?wm = "fst ?w"
-  let ?wh = "snd ?w"
-  have "get_vm \<omega> = ?wm"
-    by (simp add: get_vm_def)
-  moreover assume "get_vm \<omega> hl > 0"
-  ultimately have "ppos (?wm hl)"
-    by (simp add: gr_0_is_ppos)
-  moreover have "wf_pre_virtual_state ?w"
-    using Rep_virtual_state by auto
-  moreover have "?w = (?wm, ?wh)"
-    by simp
-  ultimately have "?wh hl \<noteq> None"
-    by (metis wf_pre_virtual_state_def)
-  moreover have "get_vh \<omega> = ?wh"
-    by (simp add: get_vh_def)
-  ultimately show "get_vh \<omega> hl \<noteq> None"
-    by simp
-qed
+  by (simp add: get_vh.rep_eq get_vm.rep_eq uvstate_wf_imp)
 
 lemma vstate_wf_ppos:
   assumes "ppos (get_vm st hl)"
@@ -574,26 +549,13 @@ qed
 
 lemma vstate_add_iff:
   "Some (c :: 'v virtual_state) = a \<oplus> b \<longleftrightarrow> Some (get_vh c) = get_vh a \<oplus> get_vh b \<and> Some (get_vm c) = get_vm a \<oplus> get_vm b" (is "?FULL \<longleftrightarrow> ?PART")
-proof
-  assume ?FULL
-  then have "Some (Rep_virtual_state c) = Rep_virtual_state a \<oplus> Rep_virtual_state b"
-    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state)
-  moreover have "\<And>\<omega> :: 'v virtual_state. get_vh \<omega> = snd (Rep_virtual_state \<omega>)"
-    by (simp add: get_vh_def)
-  moreover have "\<And>\<omega> :: 'v virtual_state. get_vm \<omega> = fst (Rep_virtual_state \<omega>)"
-    by (simp add: get_vm_def)
-  ultimately show ?PART
-    by (metis plus_prodE)
-next
-  assume ?PART
-  moreover have "\<And>\<omega> :: 'v virtual_state. get_vh \<omega> = snd (Rep_virtual_state \<omega>)"
-    by (simp add: get_vh_def)
-  moreover have "\<And>\<omega> :: 'v virtual_state. get_vm \<omega> = fst (Rep_virtual_state \<omega>)"
-    by (simp add: get_vm_def)
-  ultimately have "Some (Rep_virtual_state c) = Rep_virtual_state a \<oplus> Rep_virtual_state b"
-    using plus_prodI by fastforce
-  then show ?FULL
-    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev)
+proof -
+  have "?FULL \<longleftrightarrow> Some (Rep_virtual_state c) = Rep_virtual_state a \<oplus> Rep_virtual_state b"
+    using compatible_virtual_state_implies_unbounded_virtual_state
+      compatible_virtual_state_implies_unbounded_virtual_state_rev by blast
+  also have "\<dots> \<longleftrightarrow> ?PART"
+    by (simp add: uvstate_add_iff get_vh.rep_eq get_vm.rep_eq)
+  finally show ?thesis .
 qed
 
 

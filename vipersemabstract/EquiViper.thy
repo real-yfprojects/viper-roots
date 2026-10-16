@@ -236,6 +236,27 @@ proof -
   qed
 qed
 
+lemma uvstate_wf_imp:
+  "get_uvm \<phi> hl > 0 \<Longrightarrow> get_uvh \<phi> hl \<noteq> None"
+  using Rep_unbounded_virtual_state gr_0_is_ppos get_uvh.rep_eq get_uvm_def wf_permission_occupied_def
+  by (metis mem_Collect_eq)
+
+lemma uvstate_add_iff:
+  "Some (c :: 'v unbounded_virtual_state) = a \<oplus> b \<longleftrightarrow> Some (get_uvh c) = get_uvh a \<oplus> get_uvh b \<and> Some (get_uvm c) = get_uvm a \<oplus> get_uvm b" (is "?FULL \<longleftrightarrow> ?PART")
+proof
+  assume ?FULL
+  then have "Some (Rep_unbounded_virtual_state c) = Rep_unbounded_virtual_state a \<oplus> Rep_unbounded_virtual_state b"
+    by (rule compatible_unbounded_virtual_state_implies_pre_virtual_state)
+  then show ?PART
+    by (metis get_uvh.rep_eq get_uvm_def plus_prodE)
+next
+  assume ?PART
+  then have "Some (Rep_unbounded_virtual_state c) = Rep_unbounded_virtual_state a \<oplus> Rep_unbounded_virtual_state b"
+    by (metis get_uvh.rep_eq get_uvm_def plus_prodI prod.collapse)
+  then show ?FULL
+    by (rule compatible_unbounded_virtual_state_implies_pre_virtual_state_rev)
+qed
+
 (* TODO instantiate pcm, pcm_mult and sep_algebra *)
 
 subsection \<open>Virtual equi_states\<close>
@@ -273,6 +294,12 @@ lemma uu_get :
 
 fun read_field :: "'a unbounded_virtual_state \<Rightarrow> heap_loc \<Rightarrow> 'a val option"
   where "read_field \<phi> loc = get_uvh \<phi> loc"
+
+lemma read_field_mono:
+  assumes "\<phi>2 \<succeq> \<phi>1"
+    and "read_field \<phi>1 hl = Some v"
+  shows "read_field \<phi>2 hl = Some v"
+  using assms get_uvh_mono by simp
 
 lemma wf_mask_simple_get_vm [simp] :
   "wf_mask_simple (get_vm x)"

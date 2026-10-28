@@ -210,6 +210,12 @@ lemma vstate_wf_imp:
   "get_vm \<omega> hl > 0 \<Longrightarrow> get_vh \<omega> hl \<noteq> None"
   by (simp add: get_vh.rep_eq get_vm.rep_eq uvstate_wf_imp)
 
+lemma uvstate_wf_ppos:
+  assumes "ppos (get_uvm st hl)"
+  shows "get_uvh st hl \<noteq> None"
+  using assms
+  by (simp add: domIff norm_preal uvstate_wf_imp)
+
 lemma vstate_wf_ppos:
   assumes "ppos (get_vm st hl)"
   shows "get_vh st hl \<noteq> None"
@@ -408,7 +414,7 @@ next
 next
   case (RedField \<Delta> e \<omega> a f v)
   then obtain a' where "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a'))" "read_field (Rep_virtual_state (get_state \<omega>)) (a', f) = Some v2" using RedAccField2Val_case
-    by (metis read_field.elims)
+    by (metis get_vh.rep_eq read_field.simps)
   moreover have "a' = a"
     using RedField.hyps(2) calculation(1) by auto
   ultimately show ?case
@@ -540,7 +546,7 @@ proof -
       by (metis RHS ag_the_ag_same get_store_def plus_AgI)
     have snd_plus: "Some (snd \<omega>) = snd a \<oplus> snd b"
       apply (rule plus_prodI)
-      apply (metis RHS agreement.exhaust_sel get_trace_def plus_AgI)
+       apply (metis RHS agreement.exhaust_sel get_trace_def plus_AgI)
       by (metis RHS get_state_def)
     then show "Some \<omega> = a \<oplus> b"
       using fst_plus plus_prodI snd_plus by fastforce
@@ -645,21 +651,7 @@ qed
 lemma get_vm_additive:
   assumes "Some a = b \<oplus> c"
   shows "Some (get_vm a) = get_vm b \<oplus> get_vm c"
-proof -
-  let ?a = "Rep_virtual_state a"
-  let ?b = "Rep_virtual_state b"
-  let ?c = "Rep_virtual_state c"
-  have "Some ?a = ?b \<oplus> ?c"
-    by (simp add: assms compatible_virtual_state_implies_unbounded_virtual_state)
-  moreover have "get_vm a = fst ?a"
-    by (simp add: get_vm_def)
-  moreover have "get_vm b = fst ?b"
-    by (simp add: get_vm_def)
-  moreover have "get_vm c = fst ?c"
-    by (simp add: get_vm_def)
-  ultimately show ?thesis
-    by (metis (no_types, lifting) plus_prodE)
-qed
+  using assms vstate_add_iff by blast
 
 lemma get_m_additive:
   assumes "Some a = b \<oplus> c"
@@ -894,7 +886,7 @@ lemma greater_state_has_greater_parts:
   shows "get_store \<omega>1 = get_store \<omega>0"
     and "get_trace \<omega>1 = get_trace \<omega>0"
     and "get_state \<omega>1 \<succeq> get_state \<omega>0"
-  apply (metis assms greater_charact)
+    apply (metis assms greater_charact)
 proof -
   have "get_abs_state \<omega>1 \<succeq> get_abs_state \<omega>0"
     using assms greater_charact by blast
@@ -1131,85 +1123,88 @@ qed
 
 end
 
-
-instantiation virtual_state :: (type) pcm_with_core
+instantiation unbounded_virtual_state :: (type) pcm_with_core
 begin
 
-lift_definition core_virtual_state :: "'a virtual_state \<Rightarrow> 'a virtual_state"
+lift_definition core_unbounded_virtual_state :: "'a unbounded_virtual_state \<Rightarrow> 'a unbounded_virtual_state"
   is core
 proof -
   fix prod :: "'a pre_virtual_state"
-  assume "\<exists>\<phi>. prod = \<phi> \<and> wf_pre_virtual_state \<phi>"
+  assume "\<exists>\<phi>. prod = \<phi> \<and> wf_permission_occupied \<phi>"
   then obtain \<phi> where
     "\<phi> = prod"
-    and "wf_pre_virtual_state \<phi>"
+    and "wf_permission_occupied \<phi>"
     by simp
   obtain \<phi>p where "\<phi>p = |\<phi>|"
     by simp
   moreover obtain \<pi> h where "\<phi>p = (\<pi>, h)"
     by (simp add: calculation core_def)
-  moreover have "wf_pre_virtual_state (\<pi>, h)"
-  proof (rule wf_pre_virtual_stateI)
+  moreover have "wf_permission_occupied (\<pi>, h)"
+  proof (unfold wf_permission_occupied_def, intro allI impI)
     fix hl
     have "\<pi> hl = 0"
       by (metis (mono_tags, opaque_lifting) \<open>\<phi>p = |\<phi>|\<close> calculation core_def core_fun core_preal_def fstI)
     then have "\<not>ppos (\<pi> hl)"
       using gr_0_is_ppos by auto
-    then show "ppos (\<pi> hl) \<Longrightarrow> h hl \<noteq> None"
+    then show  "ppos (fst (\<pi>, h) hl) \<Longrightarrow> snd (\<pi>, h) hl \<noteq> None"
       by simp
-  next
-    show "wf_mask_simple \<pi>"
-      by (metis all_pos calculation(1) calculation(2) core_def core_fun core_preal_def prod.sel(1) wf_mask_simpleI)
   qed
-  ultimately show "\<exists>\<phi>. |prod| = \<phi> \<and> wf_pre_virtual_state \<phi>"
+  ultimately show "\<exists>\<phi>. |prod| = \<phi> \<and> wf_permission_occupied \<phi>"
     by (simp add: \<open>\<phi> = prod\<close>)
 qed
 
 instance proof
-  fix x :: "'a virtual_state"
+  fix x :: "'a unbounded_virtual_state"
   show "Some x = x \<oplus> |x|"
-    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_smaller core_virtual_state.rep_eq)
+    by (transfer; simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_smaller)
   show "Some |x| = |x| \<oplus> |x|"
-    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_pure core_virtual_state.rep_eq)
+    by (transfer; simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_pure)
 next
-  fix x c :: "'a virtual_state"
+  fix x c :: "'a unbounded_virtual_state"
   assume "Some x = x \<oplus> c"
   then show "\<exists>r. Some |x| = c \<oplus> r"
-    by (smt (verit, best) asso1 compatible_virtual_state_implies_unbounded_virtual_state compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_pure core_max core_virtual_state.rep_eq positivity)
+  proof (rule_tac exI[of _ "|x|"])
+    have "Some (Rep_unbounded_virtual_state x) = Rep_unbounded_virtual_state x \<oplus> Rep_unbounded_virtual_state c"
+      using \<open>Some x = x \<oplus> c\<close> by (rule compatible_unbounded_virtual_state_implies_pre_virtual_state)
+    then have "Some |Rep_unbounded_virtual_state x| = Rep_unbounded_virtual_state c \<oplus> |Rep_unbounded_virtual_state x|"
+      by (metis (no_types, lifting) core_is_pure core_is_smaller minus_equiv_def_any_elem)
+    then show "Some |x| = c \<oplus> |x|"
+      by (simp add: compatible_unbounded_virtual_state_implies_pre_virtual_state_rev core_unbounded_virtual_state.rep_eq)
+  qed
 next
-  fix c a b :: "'a virtual_state"
+  fix c a b :: "'a unbounded_virtual_state"
   assume "Some c = a \<oplus> b"
   then show "Some |c| = |a| \<oplus> |b|"
-    by (smt (verit, ccfv_SIG) compatible_virtual_state_implies_unbounded_virtual_state compatible_virtual_state_implies_unbounded_virtual_state_rev core_sum core_virtual_state.rep_eq)
+    by (smt (verit, ccfv_SIG) compatible_unbounded_virtual_state_implies_pre_virtual_state compatible_unbounded_virtual_state_implies_pre_virtual_state_rev core_sum core_unbounded_virtual_state.rep_eq)
 next
-  fix a b x y :: "'a virtual_state"
+  fix a b x y :: "'a unbounded_virtual_state"
   assume "Some a = b \<oplus> x" "Some a = b \<oplus> y" "|x| = |y|"
   then show "x = y"
-    by (metis Rep_virtual_state_inject cancellative compatible_virtual_state_implies_unbounded_virtual_state core_virtual_state.rep_eq)
+    by (metis Rep_unbounded_virtual_state_inject cancellative compatible_unbounded_virtual_state_implies_pre_virtual_state core_unbounded_virtual_state.rep_eq)
 qed
 
-lemma core_structure:
-  shows "get_vm |x| = zero_mask"
-    and "get_vh |x| = get_vh x"
+lemma uvstate_core_structure:
+  shows "get_uvm |x| = zero_mask"
+    and "get_uvh |x| = get_uvh x"
 proof -
-  obtain xm xh where "(xm, xh) = Rep_virtual_state x"
+  obtain xm xh where "(xm, xh) = Rep_unbounded_virtual_state x"
     by (metis surj_pair)
   moreover have "|(xm, xh)| = ( |xm|, |xh| )"
     by (simp add: core_def)
-  ultimately have "Rep_virtual_state |x| = ( |xm|, |xh| )"
-    by (simp add: core_virtual_state.rep_eq)
-  then have "get_vm |x| = |xm|"
-    by (simp add:get_vm_def)
-  show "get_vm |x| = zero_mask"
+  ultimately have "Rep_unbounded_virtual_state |x| = ( |xm|, |xh| )"
+    by (simp add: core_unbounded_virtual_state.rep_eq)
+  then have "get_uvm |x| = |xm|"
+    by (simp add:get_uvm_def)
+  show "get_uvm |x| = zero_mask"
   proof (rule ext)
     fix hl
     have "|xm| hl = 0"
       by (simp add: core_fun core_preal_def)
-    then show "get_vm ( |x| ) hl = zero_mask hl"
-      by (metis \<open>get_vm |x| = |xm|\<close> zero_mask_def)
+    then show "get_uvm ( |x| ) hl = zero_mask hl"
+      by (metis \<open>get_uvm |x| = |xm|\<close> zero_mask_def)
   qed
-  have "get_vh |x| = |xh|"
-    by (metis \<open>Rep_virtual_state |x| = ( |xm|, |xh| )\<close> eq_snd_iff get_vh_def)
+  have "get_uvh |x| = |xh|"
+    by (metis \<open>Rep_unbounded_virtual_state |x| = ( |xm|, |xh| )\<close> eq_snd_iff get_uvh.rep_eq)
   moreover have "|xh| = xh"
   proof (rule ext)
     fix hl
@@ -1220,14 +1215,14 @@ proof -
     ultimately show "|xh| hl = xh hl"
       by simp
   qed
-  moreover have "get_vh x = xh"
+  moreover have "get_uvh x = xh"
   proof -
-    have "xh = snd (Rep_virtual_state x)"
-      by (metis \<open>(xm, xh) = Rep_virtual_state x\<close> snd_conv)
+    have "xh = snd (Rep_unbounded_virtual_state x)"
+      by (metis \<open>(xm, xh) = Rep_unbounded_virtual_state x\<close> snd_conv)
     then show ?thesis
-      by (simp add: get_vh_def)
+      by (simp add: get_uvh_def)
   qed
-  ultimately show "get_vh |x| = get_vh x"
+  ultimately show "get_uvh |x| = get_uvh x"
     by simp
 qed
 
@@ -1238,70 +1233,74 @@ lemma greater_comp:
   shows "(\<sigma>2, t2, \<phi>2) \<succeq> (\<sigma>1, t1, \<phi>1)"
   using greater_two_comp by (metis assms)
 
-lemma wf_between_core_and_self:
-  assumes "wf_pre_virtual_state x"
+lemma wf_permission_occupied_between_core_and_self:
+  assumes "wf_permission_occupied x"
     and "x \<succeq> y"
     and "y \<succeq> |x|"
-  shows "wf_pre_virtual_state y"
-proof -
+  shows "wf_permission_occupied y"
+  unfolding wf_permission_occupied_def
+proof (intro allI impI)
   let ?xh = "snd x"
   let ?xm = "fst x"
   let ?yh = "snd y"
   let ?ym = "fst y"
   let ?ch = "snd |x|"
-  have "wf_pre_virtual_state (?ym, ?yh)"
-  proof (rule wf_pre_virtual_stateI)
-    fix hl
-    assume "ppos (?ym hl)"
-    have "?xm \<succeq> ?ym"
-      using assms(2) greater_prod_eq by blast
-    then have "?xm hl \<succeq> ?ym hl"
-      by (simp add: greaterE)
-    then obtain r where "Some (?xm hl) = ?ym hl \<oplus> r"
-      using greater_def by auto
-    then have "?xm hl = ?ym hl + r"
-      by (simp add: plus_preal_def)
-    then have "?xm hl \<ge> ?ym hl"
-      by (metis (no_types, lifting) add.right_neutral linorder_le_cases not_gr_0 padd_mono verit_comp_simplify1(3))
-    moreover have "?ym hl > 0" using \<open>ppos (?ym hl)\<close> apply transfer
-      by simp
-    ultimately have "?xm hl > 0"
-      by simp
-    then have "ppos (?xm hl)" apply transfer
-      by simp
-    moreover have "x = (?xm, ?xh)"
-      by simp
-    ultimately obtain v where "?xh hl = Some v"
-      by (metis assms(1) not_None_eq wf_pre_virtual_state_def)
-    then have "?ch hl = Some v"
-      by (metis (mono_tags, lifting) core_def core_fun core_is_smaller core_option.simps(2) option.discI plus_val_def snd_eqD)
-    moreover have "?yh hl \<succeq> ?ch hl"
-      by (metis assms(3) greaterE greater_prod_eq)
-    ultimately have "?yh hl = Some v"
-      by (metis \<open>?xh hl = Some v\<close> assms(2) greaterE greater_prod_eq succ_antisym)
-    then show "?yh hl \<noteq> None"
-      by simp
-  next
-    show "wf_mask_simple (fst y)"
-    proof (rule wf_mask_simpleI)
-      fix hl
-      have "pwrite \<ge> fst x hl"
-        using assms(1) wf_mask_simple_def wf_pre_virtual_state_def by blast
-      moreover obtain r where "Some (fst x hl) = fst y hl \<oplus> r"
-        by (metis (no_types, lifting) assms(2) greater_def plus_funE plus_prodE)
-      ultimately show "pwrite \<ge> fst y hl"
-        by (metis SepAlgebra.plus_preal_def leD leI option.sel order_less_le_trans pos_perm_class.sum_larger)
-    qed
-  qed
-  then show ?thesis
+  fix hl
+  assume "ppos (?ym hl)"
+  have "?xm \<succeq> ?ym"
+    using assms(2) greater_prod_eq by blast
+  then have "?xm hl \<succeq> ?ym hl"
+    by (simp add: greaterE)
+  then obtain r where "Some (?xm hl) = ?ym hl \<oplus> r"
+    using greater_def by auto
+  then have "?xm hl = ?ym hl + r"
+    by (simp add: plus_preal_def)
+  then have "?xm hl \<ge> ?ym hl"
+    by (metis (no_types, lifting) add.right_neutral linorder_le_cases not_gr_0 padd_mono verit_comp_simplify1(3))
+  moreover have "?ym hl > 0" using \<open>ppos (?ym hl)\<close> apply transfer
+    by simp
+  ultimately have "?xm hl > 0"
+    by simp
+  then have "ppos (?xm hl)" apply transfer
+    by simp
+  then obtain v where "?xh hl = Some v"
+    using assms(1) wf_permission_occupied_def by blast
+  then have "?ch hl = Some v"
+    by (metis (mono_tags, lifting) core_def core_fun core_is_smaller core_option.simps(2) option.discI plus_val_def snd_eqD)
+  moreover have "?yh hl \<succeq> ?ch hl"
+    by (metis assms(3) greaterE greater_prod_eq)
+  ultimately have "?yh hl = Some v"
+    by (metis \<open>?xh hl = Some v\<close> assms(2) greaterE greater_prod_eq succ_antisym)
+  then show "?yh hl \<noteq> None"
     by simp
 qed
 
-lemma wf_greater_preserve:
+lemma wf_between_core_and_self:
   assumes "wf_pre_virtual_state x"
-    and "wf_pre_virtual_state y"
     and "x \<succeq> y"
-  shows "Abs_virtual_state x \<succeq> Abs_virtual_state y"
+    and "y \<succeq> |x|"
+  shows "wf_pre_virtual_state y"
+  unfolding wf_pre_virtual_state_def
+proof
+  show "wf_permission_occupied y"
+    using assms wf_permission_occupied_between_core_and_self wf_pre_virtual_state_def by blast
+  show "wf_mask_simple (fst y)"
+  proof (rule wf_mask_simpleI)
+    fix hl
+    have "pwrite \<ge> fst x hl"
+      using assms(1) wf_mask_simple_def wf_pre_virtual_state_def by blast
+    moreover obtain r where "Some (fst x hl) = fst y hl \<oplus> r"
+      by (metis (no_types, lifting) assms(2) greater_def plus_funE plus_prodE)
+    ultimately show "pwrite \<ge> fst y hl"
+      by (metis SepAlgebra.plus_preal_def leD leI option.sel order_less_le_trans pos_perm_class.sum_larger)
+  qed
+qed
+
+lemma uvstate_wf_greater_preserve:
+  assumes "wf_permission_occupied x"
+    and "wf_permission_occupied y"
+    and "x \<succeq> y"
+  shows "Abs_unbounded_virtual_state x \<succeq> Abs_unbounded_virtual_state y"
 proof -
   obtain z where "Some x = y \<oplus> z"
     using assms(3) greater_def by blast
@@ -1309,12 +1308,10 @@ proof -
     using calculation minus_equiv_def_any_elem by blast
   ultimately have "Some x = y \<oplus> z'"
     by (metis (no_types, lifting) asso1 core_is_smaller)
-  moreover have "wf_pre_virtual_state z'"
-    using \<open>Some z' = z \<oplus> |x|\<close> assms(1) calculation greater_equiv wf_between_core_and_self by blast
-  moreover have "\<And>\<omega>. wf_pre_virtual_state \<omega> \<Longrightarrow> Rep_virtual_state (Abs_virtual_state \<omega>) = \<omega>"
-    by (simp add: Abs_virtual_state_inverse)
-  ultimately have "Some (Abs_virtual_state x) = Abs_virtual_state y \<oplus> Abs_virtual_state z'"
-    by (smt (verit) assms(1) assms(2) compatible_virtual_state_implies_unbounded_virtual_state_rev)
+  moreover have "wf_permission_occupied z'"
+    using \<open>Some z' = z \<oplus> |x|\<close> assms(1) calculation greater_equiv wf_permission_occupied_between_core_and_self by blast
+  ultimately have "Some (Abs_unbounded_virtual_state x) = Abs_unbounded_virtual_state y \<oplus> Abs_unbounded_virtual_state z'"
+    by (simp add: assms(1,2) compatible_unbounded_virtual_state_implies_pre_virtual_state_rev Abs_unbounded_virtual_state_inverse)
   then show ?thesis
     using greater_def by auto
 qed
@@ -1327,8 +1324,148 @@ lemma greater_heap_rule:
 end
 
 
-subsection \<open>Instantiation of state as sep_algebra\<close>
+instantiation virtual_state :: (type) pcm_with_core
+begin
 
+lift_definition core_virtual_state :: "'a virtual_state \<Rightarrow> 'a virtual_state"
+  is core
+  by (metis is_bounded_def get_uvm_def uvstate_core_structure(1) wf_zero_mask)
+
+instance proof
+  fix x :: "'a virtual_state"
+  show "Some x = x \<oplus> |x|"
+    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_smaller core_virtual_state.rep_eq)
+  show "Some |x| = |x| \<oplus> |x|"
+    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev core_is_pure core_virtual_state.rep_eq)
+next
+  fix x c :: "'a virtual_state"
+  assume "Some x = x \<oplus> c"
+  then have "Some (Rep_virtual_state x) = Rep_virtual_state x \<oplus> Rep_virtual_state c"
+    by (rule compatible_virtual_state_implies_unbounded_virtual_state)
+  then have "Some |Rep_virtual_state x| = Rep_virtual_state c \<oplus> |Rep_virtual_state x|"
+    by (metis (no_types, lifting) core_is_pure core_is_smaller minus_equiv_def_any_elem)
+  then show "\<exists>r. Some |x| = c \<oplus> r"
+    by (metis compatible_virtual_state_implies_unbounded_virtual_state_rev core_virtual_state.rep_eq)
+next
+  fix c a b :: "'a virtual_state"
+  assume "Some c = a \<oplus> b"
+  then show "Some |c| = |a| \<oplus> |b|"
+    by (metis compatible_virtual_state_implies_unbounded_virtual_state compatible_virtual_state_implies_unbounded_virtual_state_rev core_sum core_virtual_state.rep_eq)
+next
+  fix a b x y :: "'a virtual_state"
+  assume "Some a = b \<oplus> x" "Some a = b \<oplus> y" "|x| = |y|"
+  then show "x = y"
+    by (metis Rep_virtual_state_inject cancellative compatible_virtual_state_implies_unbounded_virtual_state core_virtual_state.rep_eq)
+qed
+
+end
+
+lemma core_structure:
+  shows "get_vm |x| = zero_mask"
+    and "get_vh |x| = get_vh x"
+  by (simp_all add: get_vm.rep_eq get_vh.rep_eq core_virtual_state.rep_eq uvstate_core_structure)
+
+lemma wf_greater_preserve:
+  assumes "wf_pre_virtual_state x"
+    and "wf_pre_virtual_state y"
+    and "x \<succeq> y"
+  shows "tuple2vs x \<succeq> tuple2vs y"
+proof -
+  obtain z where "Some x = y \<oplus> z"
+    using assms(3) greater_def by blast
+  moreover obtain z' where "Some z' = z \<oplus> |x|"
+    using calculation minus_equiv_def_any_elem by blast
+  ultimately have "Some x = y \<oplus> z'"
+    by (metis (no_types, lifting) asso1 core_is_smaller)
+  moreover have "wf_pre_virtual_state z'"
+    using \<open>Some z' = z \<oplus> |x|\<close> assms(1) calculation greater_equiv wf_between_core_and_self by blast
+  ultimately have "Some (tuple2vs x) = tuple2vs y \<oplus> tuple2vs z'"
+    by (intro compatible_virtual_state_implies_unbounded_virtual_state_rev
+        compatible_unbounded_virtual_state_implies_pre_virtual_state_rev)
+      (simp add: assms(1,2) vs2tuple_tuple2vs)
+  then show ?thesis
+    using greater_def by auto
+qed
+
+
+subsection \<open>Instantiation of unbounded_virtual_state as sep_algebra\<close>
+
+lemma plus_uvstateI:
+  assumes "Some (get_uvh \<phi>) = get_uvh a \<oplus> get_uvh b"
+    and "Some (get_uvm \<phi>) = get_uvm a \<oplus> get_uvm b"
+  shows "Some \<phi> = a \<oplus> b"
+  using assms(1) assms(2) uvstate_add_iff by blast
+
+lemma uvstate_ext:
+  assumes "get_uvm x = get_uvm y" "get_uvh x = get_uvh y"
+  shows "x = y"
+  by (metis assms(1) assms(2) core_is_smaller option.simps(1) uvstate_add_iff)
+
+instantiation unbounded_virtual_state :: (type) sep_algebra
+begin
+
+definition stable_unbounded_virtual_state :: "'v unbounded_virtual_state \<Rightarrow> bool" where
+  "stable_unbounded_virtual_state x \<longleftrightarrow> (\<forall>hl :: heap_loc. get_uvh x hl \<noteq> None \<longrightarrow> ppos (get_uvm x hl))"
+
+lift_definition stabilize_unbounded_virtual_state :: "'v unbounded_virtual_state \<Rightarrow> 'v unbounded_virtual_state" is
+  "\<lambda> \<phi>. (fst \<phi>, snd \<phi> |` {hl. ppos (fst \<phi> hl)})"
+  by (simp add: wf_permission_occupied_def)
+
+lemma uvstate_stabilize_structure:
+  shows "get_uvm (stabilize x) = get_uvm x"
+    and "get_uvh (stabilize x) = get_uvh x |` {hl. ppos (get_uvm x hl)}"
+  by (simp_all add: get_uvm_def get_uvh.rep_eq stabilize_unbounded_virtual_state.rep_eq)
+
+instance proof
+  fix x y a b :: "'a unbounded_virtual_state"
+
+  show "sep_algebra_class.stable (stabilize x)"
+    by (simp add: uvstate_stabilize_structure pperm_pnone_pgt stable_unbounded_virtual_state_def restrict_map_def)
+  show "sep_algebra_class.stable x \<Longrightarrow> stabilize x = x"
+    apply (rule uvstate_ext)
+    apply (simp_all add: uvstate_stabilize_structure stable_unbounded_virtual_state_def)
+    apply (rule ext)
+    by (metis core_option.cases eq_snd_iff mem_Collect_eq restrict_in restrict_out)
+
+  show "Some x = stabilize x \<oplus> |x|"
+  proof (rule plus_uvstateI)
+    show "Some (get_uvh x) = get_uvh (stabilize x) \<oplus> get_uvh |x|"
+    proof (rule plus_funI)
+      fix l show "Some (get_uvh x l) = get_uvh (stabilize x) l \<oplus> get_uvh |x| l"
+        apply (cases "get_uvh x l"; cases "get_uvm x l > 0")
+        using uvstate_wf_imp apply blast
+        apply (metis gr_0_is_ppos uvstate_stabilize_structure(1) \<open>sep_algebra_class.stable (stabilize x)\<close> core_is_pure core_option.simps(1) uvstate_core_structure(2) stable_unbounded_virtual_state_def)
+        apply (simp add: uvstate_stabilize_structure(2) uvstate_core_structure(2) plus_val_id restrict_map_def)
+        by (metis gr_0_is_ppos \<open>sep_algebra_class.stable (stabilize x)\<close> commutative uvstate_core_structure(2) plus_option.simps(2) stable_unbounded_virtual_state_def uvstate_stabilize_structure(1))
+    qed
+    show "Some (get_uvm x) = get_uvm (stabilize x) \<oplus> get_uvm |x|"
+      by (simp add: uvstate_stabilize_structure(1) uvstate_core_structure(1) zero_mask_identity)
+  qed
+
+  show "Some x = a \<oplus> b \<Longrightarrow> Some (stabilize x) = stabilize a \<oplus> stabilize b"
+    apply (clarsimp simp add: uvstate_add_iff uvstate_stabilize_structure restrict_map_def)
+    apply (rule plus_funI)
+    by (smt (verit) gr_0_is_ppos EquiViper.add_masks_def PosReal.ppos.rep_eq commutative core_is_pure core_option.simps(1) plus_funE plus_preal.rep_eq pperm_pnone_pgt val_option_sum uvstate_wf_ppos)
+
+  show "Some x = a \<oplus> stabilize |b| \<Longrightarrow> x = a"
+    apply (clarsimp simp add: uvstate_add_iff uvstate_stabilize_structure
+        uvstate_core_structure ValueAndBasicState.zero_mask_def)
+  proof -
+    assume a1: "Some (get_uvh x) = get_uvh a \<oplus> get_uvh b |` (if PosReal.ppos 0 then UNIV else {})"
+    assume a2: "Some (get_uvm x) = get_uvm a \<oplus> zero_mask"
+    have "\<not> PosReal.ppos 0"
+      using gr_0_is_ppos by blast
+    then have "Some (get_uvh a) = Some (get_uvh x)"
+      using a1 by (simp add: empty_heap_def empty_heap_identity)
+    then show ?thesis
+      using a2 by (metis uvstate_ext option.inject zero_mask_identity)
+  qed
+qed
+
+end
+
+
+subsection \<open>Instantiation of virtual_state as sep_algebra\<close>
 
 lemma plus_virtual_stateI:
   assumes "Some (get_vh \<phi>) = get_vh a \<oplus> get_vh b"
@@ -1342,62 +1479,22 @@ begin
 definition u_virtual_state where "u_virtual_state = uu"
 
 definition stable_virtual_state :: "'v virtual_state \<Rightarrow> bool" where
-  "stable_virtual_state x \<longleftrightarrow> (\<forall>hl :: heap_loc. get_vh x hl \<noteq> None \<longrightarrow> ppos (get_vm x hl))"
+  stable_virtual_state_Rep: "stable_virtual_state x \<longleftrightarrow> sep_algebra_class.stable (Rep_virtual_state x)"
 
-definition stabilize2pre :: "'v virtual_state \<Rightarrow> 'v pre_virtual_state" where
-  "stabilize2pre x = (get_vm x, get_vh x |` {hl. ppos (get_vm x hl)})"
+text \<open>The characterisation in terms of get_vh and get_vm keeps the name of the former definition,
+  since many downstream proofs unfold it.\<close>
 
-definition stabilize_virtual_state :: "'v virtual_state \<Rightarrow> 'v virtual_state" where
-  "stabilize_virtual_state x = Abs_virtual_state (stabilize2pre x)"
+lemma stable_virtual_state_def:
+  "sep_algebra_class.stable x \<longleftrightarrow> (\<forall>hl :: heap_loc. get_vh x hl \<noteq> None \<longrightarrow> ppos (get_vm x hl))"
+  by (simp add: stable_virtual_state_Rep stable_unbounded_virtual_state_def get_vh.rep_eq get_vm.rep_eq)
 
-lemma stabilize_wf:
-  "wf_pre_virtual_state (stabilize2pre x)"
-proof -
-  obtain \<pi> h where "stabilize2pre x = (\<pi>, h)" "\<pi> = get_vm x" "h = get_vh x |` {hl. ppos (get_vm x hl)}"
-    by (simp add: stabilize2pre_def)
-  moreover have "wf_pre_virtual_state (\<pi>, h)"
-  proof (rule wf_pre_virtual_stateI)
-    fix hl
-    assume "ppos (\<pi> hl)"
-    then have "get_vh x hl \<noteq> None"
-    proof -
-      obtain \<pi>x hx where "Rep_virtual_state x = (\<pi>x, hx)"
-        by fastforce
-      then have "\<pi>x = \<pi>"
-        by (simp add: calculation(2) get_vm_def)
-      then have "hx hl \<noteq> None"
-        by (metis \<open>PosReal.ppos (\<pi> hl)\<close> \<open>Rep_virtual_state x = (\<pi>x, hx)\<close> calculation(2) get_vh_def gr_0_is_ppos prod.sel(2) vstate_wf_imp)
-      moreover have "get_vh x = hx" using \<open>Rep_virtual_state x = (\<pi>x, hx)\<close>
-        by (simp add:get_vh_def)
-      ultimately show ?thesis
-        by simp
-    qed
-    moreover have "ppos (get_vm x hl)"
-      using \<open>PosReal.ppos (\<pi> hl)\<close> \<open>\<pi> = get_vm x\<close> by blast
-    ultimately show "h hl \<noteq> None"
-      by (simp add: \<open>h = get_vh x |` {hl. ppos (get_vm x hl)}\<close> restrict_map_def)
-  next
-    show "wf_mask_simple \<pi>"
-      by (simp add:\<open>\<pi> = get_vm x\<close>)
-  qed
-  ultimately show ?thesis
-    by simp
-qed
+lift_definition stabilize_virtual_state :: "'v virtual_state \<Rightarrow> 'v virtual_state" is stabilize
+  by (metis is_bounded_def get_uvm_def uvstate_stabilize_structure(1))
 
 lemma vstate_stabilize_structure:
   shows "get_vm (stabilize x) = get_vm x"
     and "get_vh (stabilize x) = get_vh x |` {hl. ppos (get_vm x hl)}"
-proof -
-  have "\<And>\<omega>. get_vm \<omega> = fst (Rep_virtual_state \<omega>)"
-    by (simp add: get_vm_def)
-  moreover have "Rep_virtual_state (Abs_virtual_state (stabilize2pre x)) = stabilize2pre x"
-    by (simp add: Abs_virtual_state_inverse stabilize_wf)
-  ultimately show "get_vm (stabilize x) = get_vm x"
-    by (simp add: get_vm_def stabilize2pre_def stabilize_virtual_state_def)
-  show "get_vh (stabilize x) = get_vh x |` {hl. ppos (get_vm x hl)}"
-    using \<open>Rep_virtual_state (Abs_virtual_state (stabilize2pre x)) = stabilize2pre x\<close>
-    by (simp add: get_vh_def stabilize2pre_def stabilize_virtual_state_def)
-qed
+  by (simp_all add: get_vm.rep_eq get_vh.rep_eq stabilize_virtual_state.rep_eq uvstate_stabilize_structure)
 
 lemma virtual_state_ext :
   assumes "get_vm x = get_vm y" "get_vh x = get_vh y"
@@ -1405,50 +1502,21 @@ lemma virtual_state_ext :
   by (metis assms(1) assms(2) core_is_smaller option.simps(1) vstate_add_iff)
 
 instance proof
-  fix x y a b :: "'a virtual_state"
+  fix x a b c :: "'a virtual_state"
 
   show "sep_algebra_class.stable (stabilize x)"
-    by (simp add: EquiSemAuxLemma.vstate_stabilize_structure(1) EquiSemAuxLemma.vstate_stabilize_structure(2) pperm_pnone_pgt stable_virtual_state_def restrict_map_def)
+    by (simp add: stable_virtual_state_Rep stabilize_virtual_state.rep_eq)
   show "sep_algebra_class.stable x \<Longrightarrow> stabilize x = x"
-    apply (rule virtual_state_ext)
-    apply (simp_all add: EquiSemAuxLemma.vstate_stabilize_structure stable_virtual_state_def)
-    apply (rule ext)
-    by (metis core_option.cases eq_snd_iff mem_Collect_eq restrict_in restrict_out)
-
+    by (simp add: stable_virtual_state_Rep stabilize_virtual_state.rep_eq already_stable Rep_virtual_state_inject[symmetric])
   show "Some x = stabilize x \<oplus> |x|"
-  proof (rule plus_virtual_stateI)
-    show "Some (get_vh x) = get_vh (stabilize x) \<oplus> get_vh |x|"
-    proof (rule plus_funI)
-      fix l show "Some (get_vh x l) = get_vh (stabilize x) l \<oplus> get_vh |x| l"
-        apply (cases "get_vh x l"; cases "get_vm x l > 0")
-        using vstate_wf_imp apply blast
-        apply (metis EquiSemAuxLemma.gr_0_is_ppos EquiSemAuxLemma.vstate_stabilize_structure(1) \<open>sep_algebra_class.stable (stabilize x)\<close> core_is_pure core_option.simps(1) core_structure(2) stable_virtual_state_def)
-        apply (simp add: EquiSemAuxLemma.vstate_stabilize_structure(2) core_structure(2) plus_val_id restrict_map_def)
-        by (metis EquiSemAuxLemma.gr_0_is_ppos \<open>sep_algebra_class.stable (stabilize x)\<close> commutative core_structure(2) plus_option.simps(2) stable_virtual_state_def vstate_stabilize_structure(1))
-    qed
-    show "Some (get_vm x) = get_vm (stabilize x) \<oplus> get_vm |x|"
-      by (simp add: EquiSemAuxLemma.vstate_stabilize_structure(1) core_structure(1) zero_mask_identity)
-  qed
-
-
+    by (simp add: compatible_virtual_state_implies_unbounded_virtual_state_rev decompose_stabilize_pure
+        core_virtual_state.rep_eq stabilize_virtual_state.rep_eq)
   show "Some x = a \<oplus> b \<Longrightarrow> Some (stabilize x) = stabilize a \<oplus> stabilize b"
-    apply (clarsimp simp add: vstate_add_iff EquiSemAuxLemma.vstate_stabilize_structure restrict_map_def)
-    apply (rule plus_funI)
-    by (smt (verit) EquiSemAuxLemma.gr_0_is_ppos EquiViper.add_masks_def PosReal.ppos.rep_eq commutative core_is_pure core_option.simps(1) plus_funE plus_preal.rep_eq pperm_pnone_pgt val_option_sum vstate_wf_ppos)
-
+    by (metis compatible_virtual_state_implies_unbounded_virtual_state compatible_virtual_state_implies_unbounded_virtual_state_rev
+        stabilize_sum stabilize_virtual_state.rep_eq)
   show "Some x = a \<oplus> stabilize |b| \<Longrightarrow> x = a"
-    apply (clarsimp simp add: vstate_add_iff EquiSemAuxLemma.vstate_stabilize_structure
-        EquiSemAuxLemma.core_structure ValueAndBasicState.zero_mask_def)
-  proof -
-    assume a1: "Some (get_vh x) = get_vh a \<oplus> get_vh b |` (if PosReal.ppos 0 then UNIV else {})"
-    assume a2: "Some (get_vm x) = get_vm a \<oplus> zero_mask"
-    have "\<not> PosReal.ppos 0"
-      using EquiSemAuxLemma.gr_0_is_ppos by blast
-    then have "Some (get_vh a) = Some (get_vh x)"
-      using a1 by (simp add: empty_heap_def empty_heap_identity)
-    then show ?thesis
-      using a2 by (metis EquiViper.virtual_state_ext option.inject zero_mask_identity)
-  qed
+    by (metis compatible_virtual_state_implies_unbounded_virtual_state Rep_virtual_state_inject stabilize_core_emp
+        core_virtual_state.rep_eq stabilize_virtual_state.rep_eq)
 qed
 
 end
@@ -1691,32 +1759,38 @@ qed
 
 subsection \<open>add_perm and del_perm\<close>
 
-lift_definition add_perm :: "'a virtual_state \<Rightarrow> heap_loc \<Rightarrow> preal \<Rightarrow> 'a val \<Rightarrow> 'a virtual_state" is
-  "\<lambda> st hl p v. ((get_vm st)(hl := pmin 1 (get_vm st hl + p)), (get_vh st)(hl \<mapsto> v))"
-  apply (simp add:wf_pre_virtual_state_def wf_mask_simple_def get_vm_bound)
+definition add_perm :: "'a virtual_state \<Rightarrow> heap_loc \<Rightarrow> preal \<Rightarrow> 'a val \<Rightarrow> 'a virtual_state" where
+  "add_perm st hl p v = tuple2vs ((get_vm st)(hl := pmin 1 (get_vm st hl + p)), (get_vh st)(hl \<mapsto> v))"
+
+lemma add_perm_wf:
+  "wf_pre_virtual_state ((get_vm st)(hl := pmin 1 (get_vm st hl + p)), (get_vh st)(hl \<mapsto> v))"
+  apply (simp add:wf_pre_virtual_state_def wf_permission_occupied_def wf_mask_simple_def get_vm_bound)
   using vstate_wf_Some by fastforce
 
 lemma add_perm_get_vh [simp] :
   "get_vh (add_perm st hl p v) = (get_vh st)(hl \<mapsto> v)"
-  by (simp add:get_vh_def add_perm.rep_eq)
+  by (simp add:add_perm_def add_perm_wf)
 
 lemma add_perm_get_vm [simp] :
   "get_vm (add_perm st hl p v) = (get_vm st)(hl := pmin 1 (get_vm st hl + p))"
-  by (simp add:get_vm_def add_perm.rep_eq)
+  by (simp add:add_perm_def add_perm_wf)
 
-lift_definition del_perm :: "'a virtual_state \<Rightarrow> heap_loc \<Rightarrow> preal \<Rightarrow> 'a virtual_state" is
-  "\<lambda> st hl p. ((get_vm st)(hl := get_vm st hl - p), get_vh st)"
-  apply (simp add:wf_pre_virtual_state_def wf_mask_simple_def get_vm_bound vstate_wf_Some norm_preal preal_to_real)
+definition del_perm :: "'a virtual_state \<Rightarrow> heap_loc \<Rightarrow> preal \<Rightarrow> 'a virtual_state" where
+  "del_perm st hl p = tuple2vs ((get_vm st)(hl := get_vm st hl - p), get_vh st)"
+
+lemma del_perm_wf:
+  "wf_pre_virtual_state ((get_vm st)(hl := get_vm st hl - p), get_vh st)"
+  apply (simp add:wf_pre_virtual_state_def wf_permission_occupied_def wf_mask_simple_def get_vm_bound vstate_wf_Some norm_preal preal_to_real)
   using preal_sub_ppos get_vm_bound
   by (smt (verit, best) PosReal.ppos.rep_eq Rep_preal less_eq_preal.rep_eq mem_Collect_eq one_preal.rep_eq vstate_wf_Some)
 
 lemma del_perm_get_vh [simp] :
   "get_vh (del_perm st hl p) = get_vh st"
-  by (simp add:del_perm.rep_eq get_vh_def)
+  by (simp add:del_perm_def del_perm_wf)
 
 lemma del_perm_get_vm [simp] :
   "get_vm (del_perm st hl p) = (get_vm st)(hl := get_vm st hl - p)"
-  by (simp add:del_perm.rep_eq get_vm_def)
+  by (simp add:del_perm_def del_perm_wf)
 
 lemma del_perm_0 [simp] :
   "del_perm st hl (Abs_preal 0) = st"
@@ -1744,14 +1818,39 @@ lemma add_perm_del_perm_le :
 
 subsection \<open>acc_virt\<close>
 
+text \<open>acc_uvirt is the unbounded state holding exactly the permission p to hl. The bounded acc_virt
+  is obtained from it by capping the permission at 1.\<close>
+
+lift_definition acc_uvirt :: "heap_loc \<Rightarrow> preal \<Rightarrow> 'a val \<Rightarrow> 'a unbounded_virtual_state" is
+  "\<lambda> hl (p :: preal) v. ((\<lambda> hl'. if hl = hl' then p else 0), [hl \<mapsto> v])"
+  using gr_0_is_ppos by (auto simp add: wf_permission_occupied_def)
+
+lemma acc_uvirt_get_uvm [simp]:
+  shows "get_uvm (acc_uvirt hl p v) hl' = (if hl = hl' then p else 0)"
+  by (simp add:get_uvm_def acc_uvirt.rep_eq)
+
+lemma acc_uvirt_get_uvm' :
+  shows "get_uvm (acc_uvirt hl p v) = (\<lambda> hl'. (if hl = hl' then p else 0))"
+  by (rule ext, rule acc_uvirt_get_uvm)
+
+lemma acc_uvirt_get_uvh [simp]:
+  "get_uvh (acc_uvirt hl p v) = Map.empty(hl \<mapsto> v)"
+  by (simp add:acc_uvirt.rep_eq get_uvh.rep_eq)
+
+lemma uvstate_stabilize_acc_virt :
+  assumes "ppos p"
+  shows "stabilize (acc_uvirt hl p v) = acc_uvirt hl p v"
+  apply (rule uvstate_ext; simp add:uvstate_stabilize_structure)
+  using assms by (simp add:norm_preal preal_to_real)
+
 lift_definition acc_virt :: "heap_loc \<Rightarrow> preal \<Rightarrow> 'a val \<Rightarrow> 'a virtual_state" is
-  "\<lambda> hl p v. ((\<lambda> hl'. if hl = hl' then (pmin 1 p) else 0), [hl \<mapsto> v])"
-  apply (simp add:sup_preal.rep_eq wf_pre_virtual_state_def wf_mask_simple_def)
-  using all_pos gr_0_is_ppos by blast
+  "\<lambda> hl p v. acc_uvirt hl (pmin 1 p) v"
+  apply (simp add: is_bounded_def wf_mask_simple_def acc_uvirt.rep_eq)
+  using all_pos by blast
 
 lemma acc_virt_get_vm [simp]:
   shows "get_vm (acc_virt hl p v) hl' = (if hl = hl' then pmin 1 p else 0)"
-  by (simp add:get_vm_def acc_virt.rep_eq)
+  by (simp add:get_vm.rep_eq acc_virt.rep_eq)
 
 lemma acc_virt_get_vm' :
   shows "get_vm (acc_virt hl p v) = (\<lambda> hl'. (if hl = hl' then pmin 1 p else 0))"
@@ -1759,7 +1858,7 @@ lemma acc_virt_get_vm' :
 
 lemma acc_virt_get_vh [simp]:
   "get_vh (acc_virt hl p v) = Map.empty(hl \<mapsto> v)"
-  by (simp add:acc_virt.rep_eq get_vh_def)
+  by (simp add:acc_virt.rep_eq get_vh.rep_eq)
 
 lemma stabilize_acc_virt :
   assumes "ppos p"
@@ -1924,9 +2023,7 @@ proof -
     apply (metis EquiViper.add_masks_def add.commute calculation gr_0_is_ppos leD pos_perm_class.sum_larger pperm_pnone_pgt vstate_wf_imp)
     by (metis (no_types, lifting) EquiViper.add_masks_def calculation commutative get_vm_bound pgte_transitive pos_perm_class.sum_larger wf_mask_simple_def)
   moreover obtain c where "get_vh c = get_vh x" "get_vm c = cm"
-    apply (simp add:get_vm_def get_vh_def)
-    using calculation Abs_virtual_state_inverse
-    by (metis fst_conv get_vh_def mem_Collect_eq snd_conv)
+    using calculation(2) tuple2vs_get by fastforce
   ultimately show "?thesis"
     using assms(2)
     apply (simp add: greater_def)
@@ -1943,8 +2040,6 @@ lemma greater_uu :
   "st \<succeq> uu"
   apply (simp add:vstate_greater_charact uu_get)
   by (meson empty_heap_identity greater_equiv zero_mask_identity)
-
-
 
 
 end

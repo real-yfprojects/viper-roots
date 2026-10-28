@@ -90,17 +90,9 @@ lemma pre_wf_plus_def:
 
 subsection \<open>Empty state\<close>
 
-
-
-subsection \<open>Unbounded virtual equi_states\<close>
-
-text \<open>These are derived from pre_virtual_state and form the basis of the virtual state.
-  To implement recursive predicate semantics we need to allow states with more than
-  1 permission to satisfy predicates such that fractional predicate permissions
-  can be handled correctly.\<close>
-
 definition empty_heap :: "'a partial_heap" where "empty_heap = Map.empty"
 definition uuu :: "'a pre_virtual_state" where "uuu = (zero_mask, empty_heap)"
+
 
 lemma wf_uuu:
   "wf_pre_virtual_state (zero_mask, empty_heap)"
@@ -110,6 +102,14 @@ proof (rule wf_pre_virtual_stateI)
   show "wf_mask_simple (zero_mask)"
     by (simp add: wf_zero_mask)
 qed
+
+subsection \<open>Unbounded virtual equi_states\<close>
+
+text \<open>These are derived from pre_virtual_state and form the basis of the virtual state.
+  To implement recursive predicate semantics we need to allow states with more than
+  1 permission to satisfy predicates such that fractional predicate permissions
+  can be handled correctly.\<close>
+
 
 typedef 'a unbounded_virtual_state = "{ \<phi> :: 'a pre_virtual_state |\<phi>. wf_permission_occupied \<phi> }"
   using wf_uuu wf_pre_virtual_state_def by blast
@@ -291,6 +291,21 @@ lemma uu_get :
   by (simp_all add:get_vm.rep_eq get_vh.rep_eq get_uvm_def get_uvh.rep_eq uu.rep_eq uuu_def unuu.rep_eq)
 
 
+(* Builds a bounded state directly from a mask and a heap. *)
+definition tuple2vs :: "'a pre_virtual_state \<Rightarrow> 'a virtual_state" where
+  "tuple2vs \<phi> = Abs_virtual_state (Abs_unbounded_virtual_state \<phi>)"
+
+lemma vs2tuple_tuple2vs:
+  assumes "wf_pre_virtual_state \<phi>"
+  shows "vs2tuple (tuple2vs \<phi>) = \<phi>"
+  using assms by (simp add: tuple2vs_def Abs_unbounded_virtual_state_inverse Abs_virtual_state_inverse is_bounded_def wf_pre_virtual_state_def)
+
+lemma tuple2vs_get [simp]:
+  assumes "wf_pre_virtual_state \<phi>"
+  shows "get_vm (tuple2vs \<phi>) = fst \<phi>" "get_vh (tuple2vs \<phi>) = snd \<phi>"
+  using vs2tuple_tuple2vs[OF assms] by (simp_all add: get_vm.rep_eq get_vh.rep_eq get_uvm_def get_uvh.rep_eq)
+
+
 
 fun read_field :: "'a unbounded_virtual_state \<Rightarrow> heap_loc \<Rightarrow> 'a val option"
   where "read_field \<phi> loc = get_uvh \<phi> loc"
@@ -300,6 +315,12 @@ lemma read_field_mono:
     and "read_field \<phi>1 hl = Some v"
   shows "read_field \<phi>2 hl = Some v"
   using assms get_uvh_mono by simp
+
+lemma read_field_Rep_virtual_state [simp]:
+  "read_field (Rep_virtual_state \<phi>) hl = get_vh \<phi> hl"
+  by (simp add: get_vh.rep_eq)
+
+declare read_field.simps [simp del]
 
 lemma wf_mask_simple_get_vm [simp] :
   "wf_mask_simple (get_vm x)"

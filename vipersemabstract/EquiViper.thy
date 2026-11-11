@@ -242,7 +242,8 @@ lemma uvstate_wf_imp:
   by (metis mem_Collect_eq)
 
 lemma uvstate_add_iff:
-  "Some (c :: 'v unbounded_virtual_state) = a \<oplus> b \<longleftrightarrow> Some (get_uvh c) = get_uvh a \<oplus> get_uvh b \<and> Some (get_uvm c) = get_uvm a \<oplus> get_uvm b" (is "?FULL \<longleftrightarrow> ?PART")
+  "Some (c :: 'v unbounded_virtual_state) = a \<oplus> b \<longleftrightarrow>
+   Some (get_uvh c) = get_uvh a \<oplus> get_uvh b \<and> Some (get_uvm c) = get_uvm a \<oplus> get_uvm b" (is "?FULL \<longleftrightarrow> ?PART")
 proof
   assume ?FULL
   then have "Some (Rep_unbounded_virtual_state c) = Rep_unbounded_virtual_state a \<oplus> Rep_unbounded_virtual_state b"
@@ -257,7 +258,42 @@ next
     by (rule compatible_unbounded_virtual_state_implies_pre_virtual_state_rev)
 qed
 
-(* TODO instantiate pcm, pcm_mult and sep_algebra *)
+
+lemma val_option_self_plus:
+  "Some (v :: 'a val option) = v \<oplus> v"
+  by (cases v) (simp_all add: plus_val_id)
+
+instantiation unbounded_virtual_state :: (type) pcm_mult
+begin
+
+text \<open>Scalar multiplication of unbounded virtual states is needed for fractional permissions on predicates.\<close>
+
+(* multiply permissions by a scalar *)
+lift_definition mult_unbounded_virtual_state :: "preal \<Rightarrow> 'a unbounded_virtual_state \<Rightarrow> 'a unbounded_virtual_state"
+  is "(\<lambda> \<alpha> st. (\<alpha> \<odot> fst st, snd st))"
+  by (auto simp add: wf_permission_occupied_def mult_fun_def mult_preal_def ppos_pmult)
+
+instance proof
+  fix x a b :: "'a unbounded_virtual_state"
+  fix \<alpha> \<beta> :: preal
+  show "pwrite \<odot> x = x"
+    by transfer' (auto simp add: unit_mult)
+  show "\<alpha> \<odot> (\<beta> \<odot> x) = pmult \<alpha> \<beta> \<odot> x"
+    apply transfer'
+    by (simp add: mult_mult)
+  show "Some x = a \<oplus> b \<Longrightarrow> Some (\<alpha> \<odot> x) = \<alpha> \<odot> a \<oplus> \<alpha> \<odot> b"
+    apply transfer'
+    by (smt (verit) distrib_state_mult fst_conv plus_prodE plus_prodI snd_conv)
+  show "Some (padd \<alpha> \<beta> \<odot> x) = \<alpha> \<odot> x \<oplus> \<beta> \<odot> x"
+    apply transfer'
+      (* split product type and apply pcm_mult lemma for the first component *)
+    apply (auto intro!: plus_prodI simp: distrib_scala_mult plus_val_id)
+      (* resolve the second component *)
+    apply (simp_all add: plus_funI val_option_self_plus)
+    done
+qed
+
+end
 
 subsection \<open>Virtual equi_states\<close>
 

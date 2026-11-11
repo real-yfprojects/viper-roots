@@ -123,7 +123,7 @@ qed
 end
 
 instantiation preal :: distrib_lattice
-begin                            
+begin
 
 lift_definition inf_preal :: "preal \<Rightarrow> preal \<Rightarrow> preal" is "(min)" by simp
 lift_definition sup_preal :: "preal \<Rightarrow> preal \<Rightarrow> preal" is "(max)" by simp
@@ -256,7 +256,7 @@ lemma preal_gte_padd:
   using assms
 proof transfer
   fix q p :: real
-  assume "p \<ge> q" 
+  assume "p \<ge> q"
 
   from \<open>p \<ge> q\<close> have "p = q + (p-q)"
     by simp
@@ -269,9 +269,9 @@ proof transfer
 qed
 
 lemma pminus_strictly_smaller:
-  assumes "(p :: preal) > q" 
-      and "q > 0"
-    shows "p > (p - q)"
+  assumes "(p :: preal) > q"
+    and "q > 0"
+  shows "p > (p - q)"
   using assms
   by (simp add: preal_to_real)
 
@@ -308,12 +308,12 @@ lemma pmax_is:
 
 lemma pmax_is_smaller:
   assumes "pgte x a"
-      and "pgte x b"
-    shows "pgte x (pmax a b)"
+    and "pgte x b"
+  shows "pgte x (pmax a b)"
   using assms(1) assms(2) pgte.rep_eq sup_preal.rep_eq by auto
 
 lemma preal_exists_stricly_smaller_nonzero:
-  assumes "p \<noteq> pnone" 
+  assumes "p \<noteq> pnone"
   shows "\<exists>q. q \<noteq> pnone \<and> pgt p q"
   using assms
   apply transfer
@@ -334,8 +334,8 @@ lemma half_plus_half:
 
 lemma pgte_antisym:
   assumes "pgte a b"
-      and "pgte b a"
-    shows "a = b"
+    and "pgte b a"
+  shows "a = b"
   by (metis Rep_preal_inverse assms(1) assms(2) leD le_less pgte.rep_eq)
 
 lemma sum_larger:
@@ -367,8 +367,8 @@ qed
 
 lemma padd_cancellative:
   assumes "a = padd x b"
-      and "a = padd y b"
-    shows "x = y"
+    and "a = padd y b"
+  shows "x = y"
   by (metis Rep_preal_inject add_right_imp_eq assms(1) assms(2) plus_preal.rep_eq)
 
 
@@ -378,8 +378,8 @@ lemma not_pgte_charact:
 
 lemma pgte_pgt:
   assumes "pgt a b"
-      and "pgte c d"
-    shows "pgt (padd a c) (padd b d)"
+    and "pgte c d"
+  shows "pgt (padd a c) (padd b d)"
   using assms(1) assms(2) pgt.rep_eq pgte.rep_eq plus_preal.rep_eq by auto
 
 lemma pmult_distr:
@@ -394,14 +394,18 @@ lemma pmult_special:
   "pmult pwrite x = x"
   by simp
 
+lemma ppos_pmult:
+  "ppos (pmult a b) \<longleftrightarrow> ppos a \<and> ppos b"
+  by transfer (simp add: zero_less_mult_iff)
+
 lemma pinv_double_half:
   "pmult half (pinv p) = pinv (padd p p)"
   by (metis Rep_preal_inverse div_by_1 divide_divide_eq_right divide_preal.rep_eq field_divide_inverse mult_1 one_add_one one_preal.rep_eq plus_preal.rep_eq pmult_distr)
 
 lemma pinv_inverts:
   assumes "pgte a b"
-      and "ppos b"
-    shows "pgte (pinv b) (pinv a)"
+    and "ppos b"
+  shows "pgte (pinv b) (pinv a)"
   using assms
   unfolding pgte_def inverse_preal_def ppos_def
   by (simp add: divide_mono divide_preal.rep_eq one_preal.rep_eq)
@@ -500,31 +504,31 @@ begin
 
 instance proof
   fix x y a b p1 p2 q1 q2 :: preal
-  show "x < y \<Longrightarrow> \<exists>z>x. z < y" 
+  show "x < y \<Longrightarrow> \<exists>z>x. z < y"
     by (transfer) (metis dense dual_order.trans less_eq_real_def mem_Collect_eq)
-  show "a \<noteq> PosReal.pnone \<Longrightarrow> pmult (pinv a) a = PosReal.pwrite" 
+  show "a \<noteq> PosReal.pnone \<Longrightarrow> pmult (pinv a) a = PosReal.pwrite"
     apply (cases a)
     apply (cases b)
     by (simp add: PosReal.field_inverse)
-  show "pdiv a b = pmult a (pinv b)" 
+  show "pdiv a b = pmult a (pinv b)"
     apply (cases a)
     apply (cases b)
     by (simp add: PosReal.field_divide_inverse)
-  show "pinv PosReal.pnone = PosReal.pnone" 
+  show "pinv PosReal.pnone = PosReal.pnone"
     by (simp add: PosReal.field_inverse_zero)
-  show "PosReal.pnone \<le> a" 
+  show "PosReal.pnone \<le> a"
     by (metis PosReal.not_pgte_charact PosReal.sum_larger nle_le preal_gte_padd preal_pnone_pgt)
-  show "p1 \<le> p2 \<and> q1 \<le> q2 \<Longrightarrow> padd p1 q1 \<le> padd p2 q2" 
+  show "p1 \<le> p2 \<and> q1 \<le> q2 \<Longrightarrow> padd p1 q1 \<le> padd p2 q2"
     by (simp add: PosReal.padd_mono)
   show "p1 \<le> p2 \<Longrightarrow> \<exists>r. p2 = padd p1 r"
     by (simp add: preal_gte_padd)
-  show "b \<le> a \<and> PosReal.pnone < b \<Longrightarrow> pinv a \<le> pinv b" 
+  show "b \<le> a \<and> PosReal.pnone < b \<Longrightarrow> pinv a \<le> pinv b"
     apply (cases a)
     apply (cases b)
-    by (metis PosReal.pinv_inverts less_eq_preal.rep_eq less_preal.rep_eq pgte.rep_eq ppos.rep_eq zero_preal.rep_eq)    
+    by (metis PosReal.pinv_inverts less_eq_preal.rep_eq less_preal.rep_eq pgte.rep_eq ppos.rep_eq zero_preal.rep_eq)
   show "PosReal.pwrite < padd PosReal.pwrite PosReal.pwrite"
     by (transfer) simp
-  show "\<And>a x b y. a = padd x b \<Longrightarrow> a = padd y b \<Longrightarrow> x = y" 
+  show "\<And>a x b y. a = padd x b \<Longrightarrow> a = padd y b \<Longrightarrow> x = y"
     by (transfer) simp
 qed
 

@@ -229,6 +229,7 @@ lemma vstate_wf_Some :
 
 section \<open>Equi Red Rules\<close>
 
+(* sat is commented out in EquiViper.thy
 lemma sat_wand_rule:
   assumes "\<And>a b. Some b = \<omega> \<oplus> a \<Longrightarrow> (\<Delta> \<Turnstile> \<langle>A; a\<rangle>) \<Longrightarrow> (\<Delta> \<Turnstile> \<langle>B; b\<rangle>)"
   shows "\<Delta> \<Turnstile> \<langle>A --* B; \<omega>\<rangle>"
@@ -238,19 +239,22 @@ lemma sat_forall_rule:
   assumes "\<And>v. v \<in> set_from_type (domains \<Delta>) ty \<Longrightarrow> \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>"
   shows "\<Delta> \<Turnstile> \<langle>ForAll ty A; \<omega>\<rangle>"
   by (simp add: assms)
+*)
 
-subsection \<open>red_pure cases and red_atomic_assert cases\<close>
+subsection \<open>red_pure cases\<close>
 
 inductive_cases RedLitInt2Val_case: "I \<turnstile> \<langle>ELit (LInt n); \<omega>\<rangle> [\<Down>] Val v"
 inductive_cases RedDiv2Val_case: "I \<turnstile> \<langle>Binop e PermDiv e'; \<omega>\<rangle> [\<Down>] Val v"
 
 inductive_cases RedMult2Val_case: "I \<turnstile> \<langle>Binop e Mult e'; \<omega>\<rangle> [\<Down>] Val (VPerm v)"
 
+(* red_atomic_assert is commented out in EquiViper.thy
 inductive_cases RedAccField_case: "red_atomic_assert I (Acc x f e) \<omega> res"
 inductive_cases RedAccPred_case: "red_atomic_assert I (AccPredicate P exps e) \<omega> res"
 
 inductive_cases RedPure_case: "red_atomic_assert \<Delta> (Pure e) \<omega> res"
 inductive_cases RedPure2True_case: "red_atomic_assert I (Pure x) \<omega> (Some True)"
+*)
 
 inductive_cases RedLit2Val_case: "I \<turnstile> \<langle>ELit l; \<omega>\<rangle> [\<Down>] Val v"
 inductive_cases RedVar2Val_case: "I \<turnstile> \<langle>Var n; \<omega>\<rangle> [\<Down>] Val v"
@@ -266,13 +270,15 @@ inductive_cases RedPerm2Val_case: "I \<turnstile> \<langle>Perm e f; \<omega>\<r
 inductive_cases RedAccField2Val_case: "I \<turnstile> \<langle>FieldAcc e f; \<omega>\<rangle> [\<Down>] Val v"
 inductive_cases RedFunApp2Val_case: "I \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] Val v"
 
+(* red_atomic_assert is commented out in EquiViper.thy
 inductive_cases RedAccFieldPerm_case: "red_atomic_assert I (Acc x f (PureExp e)) \<omega> res"
 inductive_cases RedAccFieldWild_case: "red_atomic_assert I (Acc x f Wildcard) \<omega> res"
 inductive_cases RedAccPredPerm_case: "red_atomic_assert I (AccPredicate P xs (PureExp e)) \<omega> res"
 inductive_cases RedAccPredWild_case: "red_atomic_assert I (AccPredicate P xs Wildcard) \<omega> res"
+*)
 
 
-subsection \<open>red_pure and field Acc reduction are unique\<close>
+subsection \<open>red_pure is unique\<close>
 
 lemma red_pure_det_ind :
   (* TODO: weaken this *)
@@ -413,8 +419,8 @@ next
     using RedResult2Val_case by fastforce
 next
   case (RedField \<Delta> e \<omega> a f v)
-  then obtain a' where "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a'))" "read_field (Rep_virtual_state (get_state \<omega>)) (a', f) = Some v2" using RedAccField2Val_case
-    by (metis get_vh.rep_eq read_field.simps)
+  then obtain a' where "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a'))" "read_field (get_ustate \<omega>) (a', f) = Some v2" using RedAccField2Val_case
+    by metis
   moreover have "a' = a"
     using RedField.hyps(2) calculation(1) by auto
   ultimately show ?case
@@ -425,6 +431,7 @@ next
     by (metis RedFunApp2Val_case option.inject)
 qed
 
+(* red_atomic_assert is commented out in EquiViper.thy
 lemma red_accfield_unique:
   shows "red_atomic_assert \<Delta> (Acc x f e) \<omega> res1 \<Longrightarrow> red_atomic_assert \<Delta> (Acc x f e) \<omega> res2 \<Longrightarrow> res1 = res2"
 proof (induction _ "Acc x f e" \<omega> _ rule: red_atomic_assert.induct)
@@ -448,6 +455,7 @@ next
   then show ?case
     by (metis RedAccFieldPerm_case order.asym red_pure_val_unique(1) val.inject(3))
 qed
+*)
 
 
 section \<open>Separation Algebra and Properties of EquiViper states\<close>
@@ -1575,6 +1583,44 @@ lemma get_vh_Some_greater :
   using assms
   by (metis greater_state_has_greater_parts(3) get_vh_mono)
 
+subsubsection \<open>Core and greater on unbounded equi_states\<close>
+
+lemma greater_ustate_has_greater_parts:
+  assumes "(\<omega>1 :: 'a unbounded_equi_state) \<succeq> \<omega>0"
+  shows "get_store \<omega>1 = get_store \<omega>0"
+    and "get_utrace \<omega>1 = get_utrace \<omega>0"
+    and "get_ustate \<omega>1 \<succeq> get_ustate \<omega>0"
+    apply (metis assms greater_charact)
+proof -
+  have "get_abs_state \<omega>1 \<succeq> get_abs_state \<omega>0"
+    using assms greater_charact by blast
+  then have "Ag (get_utrace \<omega>1) \<succeq> Ag (get_utrace \<omega>0)"
+    by (simp add: get_abs_state_def get_utrace_def greater_prod_eq)
+  then show "get_utrace \<omega>1 = get_utrace \<omega>0"
+    by (simp add: greater_Ag)
+  show "get_ustate \<omega>1 \<succeq> get_ustate \<omega>0"
+    by (metis \<open>get_abs_state \<omega>1 \<succeq> get_abs_state \<omega>0\<close> get_abs_state_def get_ustate_def greater_prod_eq)
+qed
+
+lemma core_charact_uequi:
+  shows "get_ustate |\<omega>| = |get_ustate \<omega>|"
+    and "get_utrace |\<omega>| = get_utrace \<omega>"
+  apply (simp add: core_def get_ustate_def)
+  by (metis (no_types, lifting) core_is_smaller greater_equiv greater_ustate_has_greater_parts(2))
+
+lemma set_ustate_core :
+  "set_ustate ( |\<omega>| ) st = set_ustate \<omega> st"
+  by (simp add: set_ustate_def core_charact(1) core_charact_uequi(2))
+
+lemma set_ustate_greater :
+  assumes "\<omega>' \<succeq> \<omega>"
+  shows "set_ustate \<omega> st = set_ustate \<omega>' st"
+  by (simp add: set_ustate_def greater_ustate_has_greater_parts[OF assms])
+
+lemma read_field_core :
+  "read_field ( |\<phi>| ) hl = read_field \<phi> hl"
+  by (simp add: read_field.simps uvstate_core_structure(2))
+
 lemma red_pure_core_ind :
   assumes "\<And> f vals st. interp.funs \<Delta> f vals st = interp.funs \<Delta> f vals |st|"
   shows "\<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] r \<Longrightarrow> \<Delta> \<turnstile> \<langle>e; |\<omega>|\<rangle> [\<Down>] r"
@@ -1609,7 +1655,7 @@ next
 next
   case (RedOld \<omega> l \<phi> \<Delta> e v)
   then show ?case
-    by (metis get_trace_set_state red_pure_red_pure_exps.RedOld set_state_core)
+    by (metis core_charact_uequi(2) red_pure_red_pure_exps.RedOld set_ustate_core)
 next
   case (RedLet \<Delta> e1 \<omega> v1 e2 r)
   then show ?case
@@ -1657,7 +1703,7 @@ next
 next
   case (RedOldFailure \<omega> l \<Delta> e)
   then show ?case
-    by (metis get_trace_set_state red_pure_red_pure_exps.RedOldFailure set_state_core)
+    by (simp add: core_charact_uequi(2) red_pure_red_pure_exps.RedOldFailure)
 next
   case (RedExistsFailure v \<Delta> ty e \<omega>)
   then show ?case
@@ -1666,7 +1712,7 @@ next
   case (RedForallFailure v \<Delta> ty e \<omega>)
   then show ?case
     by (simp add: red_pure_red_pure_exps.RedForallFailure shift_and_add_core)
-qed (clarsimp simp add:red_pure_simps core_charact_equi set_state_core core_structure shift_and_add_core; metis?; fastforce)+
+qed (clarsimp simp add:red_pure_simps core_charact_uequi set_ustate_core read_field_core shift_and_add_core; metis?; fastforce)+
 
 
 lemma red_pure_core :
@@ -1687,57 +1733,57 @@ lemma red_pure_greater_ind :
 proof (induction _ _ "\<omega>" "r" and _ "\<omega>" _ _ arbitrary: \<omega>' and \<omega>' rule: red_pure_red_pure_exps.inducts)
   case (RedLet \<Delta> e1 \<omega> v1 e2 r)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedExistsTrue v \<Delta> ty e \<omega>)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedExistsFalse \<Delta> ty e \<omega>)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedForallTrue \<Delta> ty e \<omega>)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedForallFalse v \<Delta> ty e \<omega>)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedExistsFailure v \<Delta> ty e \<omega>)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedForallFailure v \<Delta> ty e \<omega>)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis shift_and_add_equi_state_preserve_greater)
 next
   case (RedFunApp \<Delta> \<omega> exps vals f v)
-  then show ?case by (clarsimp simp add:red_pure_simps greater_state_has_greater_parts set_state_greater; metis)
+  then show ?case by (clarsimp simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater; metis)
 next
   case (RedFunAppFailure \<Delta> \<omega> exps vals f)
-  then show ?case apply (simp add:red_pure_simps greater_state_has_greater_parts set_state_greater del:Product_Type.split_paired_All)
+  then show ?case apply (simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater del:Product_Type.split_paired_All)
     by (metis)
 next
   case (RedField \<Delta> e \<omega> a f v)
   then show ?case
-    apply (simp add:red_pure_simps greater_state_has_greater_parts del:Product_Type.split_paired_All)
-    using get_vh_Some_greater by blast
+    apply (simp add:red_pure_simps greater_ustate_has_greater_parts del:Product_Type.split_paired_All)
+    using read_field_mono greater_ustate_has_greater_parts(3) by blast
 next
   case (RedPureExps c exps vals)
   then show ?case by (simp add: list_all2_mono red_pure_red_pure_exps.RedPureExps del:Product_Type.split_paired_All)
 next
   case (RedPropagateFailure e e' \<Delta>)
   then show ?case by (cases e'; simp add:red_pure_simps del:Product_Type.split_paired_All; metis)
-qed (clarsimp simp add:red_pure_simps greater_state_has_greater_parts set_state_greater; metis?; fastforce)+
+qed (clarsimp simp add:red_pure_simps greater_ustate_has_greater_parts set_ustate_greater; metis?; fastforce)+
 
 lemma red_pure_greater :
   assumes "\<omega>' \<succeq> \<omega>"

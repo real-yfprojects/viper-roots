@@ -496,6 +496,9 @@ type_synonym 'a ag_trace = "(label \<rightharpoonup> 'a virtual_state) agreement
 
 type_synonym 'a equi_state = "('a val, ('a ag_trace \<times> 'a virtual_state)) abs_state"
 
+(* QUESTION: in the unbouded setting traces still contain bounded states? *)
+type_synonym 'a unbounded_equi_state = "('a val, ('a ag_trace \<times> 'a unbounded_virtual_state)) abs_state"
+
 definition get_state :: "'a equi_state \<Rightarrow> 'a virtual_state" where "get_state \<omega> = snd (snd \<omega>)"
 definition get_trace :: "'a equi_state \<Rightarrow> (label \<rightharpoonup> 'a virtual_state)" where "get_trace \<omega> = the_ag (fst (snd \<omega>))"
 definition set_state :: "'a equi_state \<Rightarrow> 'a virtual_state \<Rightarrow> 'a equi_state" where
@@ -546,14 +549,43 @@ abbreviation get_m where "get_m \<omega> \<equiv> get_vm (get_state \<omega>)"
 
 fun get_pv :: "'a equi_state \<Rightarrow> 'a pre_virtual_state" where "get_pv \<omega> = vs2tuple (get_state \<omega>)"
 
+subsection \<open>Unbounded equi_states\<close>
+
+text \<open>The trace keeps bounded states: old states are snapshots of actual program states.\<close>
+
+definition get_ustate :: "'a unbounded_equi_state \<Rightarrow> 'a unbounded_virtual_state" where
+  "get_ustate \<omega> = snd (snd \<omega>)"
+definition get_utrace :: "'a unbounded_equi_state \<Rightarrow> (label \<rightharpoonup> 'a virtual_state)" where
+  "get_utrace \<omega> = the_ag (fst (snd \<omega>))"
+definition set_ustate :: "'a unbounded_equi_state \<Rightarrow> 'a unbounded_virtual_state \<Rightarrow> 'a unbounded_equi_state" where
+  "set_ustate \<omega> \<phi> = (Ag (get_store \<omega>), (Ag (get_utrace \<omega>), \<phi>))"
+
+abbreviation get_uh where "get_uh \<omega> \<equiv> get_uvh (get_ustate \<omega>)"
+abbreviation get_um where "get_um \<omega> \<equiv> get_uvm (get_ustate \<omega>)"
+
+text \<open>Every bounded equi_state is an unbounded one: only the current state changes type.\<close>
+
+definition uequi_of_equi :: "'a equi_state \<Rightarrow> 'a unbounded_equi_state" where
+  "uequi_of_equi \<omega> = (fst \<omega>, (fst (snd \<omega>), Rep_virtual_state (snd (snd \<omega>))))"
+
+lemma get_store_uequi_of_equi [simp] :
+  "get_store (uequi_of_equi \<omega>) = get_store \<omega>"
+  by (simp add: get_store_def uequi_of_equi_def)
+lemma get_utrace_uequi_of_equi [simp] :
+  "get_utrace (uequi_of_equi \<omega>) = get_trace \<omega>"
+  by (simp add: get_utrace_def get_trace_def uequi_of_equi_def)
+lemma get_ustate_uequi_of_equi [simp] :
+  "get_ustate (uequi_of_equi \<omega>) = Rep_virtual_state (get_state \<omega>)"
+  by (simp add: get_ustate_def get_state_def uequi_of_equi_def)
+
 definition shift_and_add_equi_state where
   "shift_and_add_equi_state \<omega> x = set_store \<omega> (shift_and_add (get_store \<omega>) x)"
 
 subsection \<open>Assertions\<close>
 
-inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'v equi_state \<Rightarrow> 'v extended_val \<Rightarrow> bool"
+inductive red_pure :: "('v, ('v unbounded_virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'v unbounded_equi_state \<Rightarrow> 'v extended_val \<Rightarrow> bool"
   ("_ \<turnstile> ((\<langle>_;_\<rangle>) [\<Down>] _)" [51,0,0,0] 81)
-  and red_pure_exps :: "('v, ('v virtual_state)) interp \<Rightarrow> 'v equi_state \<Rightarrow> pure_exp list \<Rightarrow> 'v val list \<Rightarrow> bool"
+  and red_pure_exps :: "('v, ('v unbounded_virtual_state)) interp \<Rightarrow> 'v unbounded_equi_state \<Rightarrow> pure_exp list \<Rightarrow> 'v val list \<Rightarrow> bool"
   where
     RedPureExps: "\<lbrakk> list_all2 (\<lambda>e v. c \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v) exps vals \<rbrakk> \<Longrightarrow> red_pure_exps c \<omega> exps vals"
 
@@ -569,7 +601,7 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 | RedBinop: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; \<Delta> \<turnstile> \<langle>e2; \<omega>\<rangle> [\<Down>] Val v2 ; eval_binop v1 bop v2 = BinopNormal v \<rbrakk>
     \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] Val v"
 
-| RedOld: "\<lbrakk> get_trace \<omega> l = Some \<phi> ; \<Delta> \<turnstile> \<langle>e; set_state \<omega> \<phi>\<rangle> [\<Down>] v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Old l e; \<omega>\<rangle> [\<Down>] v" (* Implicitly propagates failures *)
+| RedOld: "\<lbrakk> get_utrace \<omega> l = Some \<phi> ; \<Delta> \<turnstile> \<langle>e; set_ustate \<omega> (Rep_virtual_state \<phi>)\<rangle> [\<Down>] v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Old l e; \<omega>\<rangle> [\<Down>] v" (* Implicitly propagates failures *)
 
 | RedLet: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; \<Delta> \<turnstile> \<langle>e2; shift_and_add_equi_state \<omega> v1\<rangle> [\<Down>] r \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Let e1 e2; \<omega>\<rangle> [\<Down>] r"
 
@@ -604,7 +636,7 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] VFailure"
 | RedBinopFailure: "\<lbrakk> \<Delta> \<turnstile> \<langle>e1; \<omega>\<rangle> [\<Down>] Val v1 ; \<Delta> \<turnstile> \<langle>e2; \<omega>\<rangle> [\<Down>] Val v2 ; eval_binop v1 bop v2 = BinopOpFailure ; eval_binop_lazy v1 bop = None \<rbrakk>
 \<Longrightarrow> \<Delta> \<turnstile> \<langle>Binop e1 bop e2; \<omega>\<rangle> [\<Down>] VFailure" (* Division by 0 *)
-| RedOldFailure: "\<lbrakk> get_trace \<omega> l = None \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Old l e ; \<omega>\<rangle> [\<Down>] VFailure"
+| RedOldFailure: "\<lbrakk> get_utrace \<omega> l = None \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>Old l e ; \<omega>\<rangle> [\<Down>] VFailure"
 | RedExistsFailure: "\<lbrakk> v \<in> set_from_type (domains \<Delta>) ty; \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] VFailure \<rbrakk>
 \<Longrightarrow> \<Delta> \<turnstile> \<langle>PExists ty e; \<omega>\<rangle> [\<Down>] VFailure"
 | RedForallFailure: "\<lbrakk> v \<in> set_from_type (domains \<Delta>) ty; \<Delta> \<turnstile> \<langle>e; shift_and_add_equi_state \<omega> v\<rangle> [\<Down>] VFailure \<rbrakk>
@@ -614,11 +646,11 @@ inductive red_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<
 
 
 (* Dependent on the parameters *)
-| RedField: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a)) ; read_field (Rep_virtual_state (get_state \<omega>)) (a, f) = Some v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>FieldAcc e f; \<omega>\<rangle> [\<Down>] Val v"
+| RedField: "\<lbrakk> \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VRef (Address a)) ; read_field (get_ustate \<omega>) (a, f) = Some v \<rbrakk> \<Longrightarrow> \<Delta> \<turnstile> \<langle>FieldAcc e f; \<omega>\<rangle> [\<Down>] Val v"
 
-| RedFunApp: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_state \<omega>) = Some v \<rbrakk>
+| RedFunApp: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_ustate \<omega>) = Some v \<rbrakk>
 \<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] Val v"
-| RedFunAppFailure: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_state \<omega>) = None \<rbrakk>
+| RedFunAppFailure: "\<lbrakk> red_pure_exps \<Delta> \<omega> exps vals ; (funs \<Delta>) f vals (get_ustate \<omega>) = None \<rbrakk>
 \<Longrightarrow> \<Delta> \<turnstile> \<langle>FunApp f exps; \<omega>\<rangle> [\<Down>] VFailure"
 
 
@@ -782,10 +814,10 @@ next
 qed
 
 
-definition wd_pure :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'v equi_state \<Rightarrow> bool" where
+definition wd_pure :: "('v, ('v unbounded_virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'v unbounded_equi_state \<Rightarrow> bool" where
   "wd_pure c e \<omega> \<longleftrightarrow> (\<exists>v. (c \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v))"
 
-definition wd_pure_set :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'v equi_state set \<Rightarrow> bool" where
+definition wd_pure_set :: "('v, ('v unbounded_virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'v unbounded_equi_state set \<Rightarrow> bool" where
   "wd_pure_set c e A \<longleftrightarrow> (\<forall>\<omega> \<in> A. wd_pure c e \<omega>)"
 
 fun red_pure_bool where
@@ -793,7 +825,7 @@ fun red_pure_bool where
 if \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val (VBool True) then Some True else Some False
 else None)"
 
-inductive red_atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp atomic_assert \<Rightarrow> 'v equi_state \<Rightarrow> bool option \<Rightarrow> bool" where
+(* inductive red_atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> pure_exp atomic_assert \<Rightarrow> 'v equi_state \<Rightarrow> bool option \<Rightarrow> bool" where
 
 RedAtomicPure: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VBool b)) \<rbrakk> \<Longrightarrow> red_atomic_assert \<Delta> (Pure e) \<omega> (Some b)"
 
@@ -808,7 +840,7 @@ RedAtomicPure: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VBool b)) \<rbrakk>
 | RedAtomicAccWildcardNull: "\<lbrakk> red_pure \<Delta> e \<omega> (Val (VRef Null)) \<rbrakk>
 \<Longrightarrow> red_atomic_assert \<Delta> (Acc e f Wildcard) \<omega> (Some False)"
 | RedAtomicAccNeg: "\<lbrakk> red_pure \<Delta> p \<omega> (Val (VPerm v)) ; v < 0 \<rbrakk>
-\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> None"
+\<Longrightarrow> red_atomic_assert \<Delta> (Acc e f (PureExp p)) \<omega> None" *)
 
 \<comment>\<open>acc(P(exps), p)\<close>
 (*
@@ -838,7 +870,7 @@ lemma no_old_indep_trace:
 *)
 
 
-fun sat :: "('a, 'a virtual_state) interp
+(* fun sat :: "('a, 'a virtual_state) interp
 \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state \<Rightarrow> bool"
 
 (* :: "'c \<Rightarrow> ('p, 'i) assert \<Rightarrow> 'a \<Rightarrow> bool" *) ("_ \<Turnstile> ((\<langle>_;_\<rangle>))" [52,0,0] 84) where
@@ -852,7 +884,7 @@ fun sat :: "('a, 'a virtual_state) interp
 | "\<Delta> \<Turnstile> \<langle>ForAll ty A; \<omega>\<rangle> \<longleftrightarrow> (\<forall>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)"
 | "\<Delta> \<Turnstile> \<langle>Exists ty A; \<omega>\<rangle> \<longleftrightarrow> (\<exists>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)"
 | "(\<Delta> \<Turnstile> \<langle>ImpureAnd A B; \<omega>\<rangle>) \<longleftrightarrow> (\<Delta> \<Turnstile> \<langle>A; \<omega>\<rangle> \<and> \<Delta> \<Turnstile> \<langle>B; \<omega>\<rangle>)"
-| "(\<Delta> \<Turnstile> \<langle>ImpureOr A B; \<omega>\<rangle>) \<longleftrightarrow> (\<Delta> \<Turnstile> \<langle>A; \<omega>\<rangle> \<or> \<Delta> \<Turnstile> \<langle>B; \<omega>\<rangle>)"
+| "(\<Delta> \<Turnstile> \<langle>ImpureOr A B; \<omega>\<rangle>) \<longleftrightarrow> (\<Delta> \<Turnstile> \<langle>A; \<omega>\<rangle> \<or> \<Delta> \<Turnstile> \<langle>B; \<omega>\<rangle>)" *)
 
 
 (*

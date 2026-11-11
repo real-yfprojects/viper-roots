@@ -2,38 +2,38 @@ theory Instantiation
   imports AbstractSemanticsProperties EquiViper EquiSemAuxLemma
 begin
 
-definition make_semantic_bexp :: "('a, ('a virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'a equi_state bexp" where
+definition make_semantic_bexp :: "('a, ('a unbounded_virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> 'a equi_state bexp" where
   "make_semantic_bexp \<Delta> b \<omega> =
-  (if \<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val (VBool True) then Some True
-  else if \<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val (VBool False) then Some False
+  (if \<Delta> \<turnstile> \<langle>b; uequi_of_equi \<omega>\<rangle> [\<Down>] Val (VBool True) then Some True
+  else if \<Delta> \<turnstile> \<langle>b; uequi_of_equi \<omega>\<rangle> [\<Down>] Val (VBool False) then Some False
   else None)"
 
-definition make_semantic_exp :: "('a, ('a virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> ('a equi_state, 'a val) exp" where
-  "make_semantic_exp \<Delta> e \<omega> = (if \<exists>v. \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v then Some (SOME v. \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] Val v) else None)"
+definition make_semantic_exp :: "('a, ('a unbounded_virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> ('a equi_state, 'a val) exp" where
+  "make_semantic_exp \<Delta> e \<omega> = (if \<exists>v. \<Delta> \<turnstile> \<langle>e; uequi_of_equi \<omega>\<rangle> [\<Down>] Val v then Some (SOME v. \<Delta> \<turnstile> \<langle>e; uequi_of_equi \<omega>\<rangle> [\<Down>] Val v) else None)"
 
-definition make_semantic_rexp :: "('a, ('a virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> ('a equi_state, address) exp" where
-  "make_semantic_rexp \<Delta> r \<omega> = (if \<exists>v. \<Delta> \<turnstile> \<langle>r; \<omega>\<rangle> [\<Down>] Val (VRef (Address v))
-  then Some (SOME v. \<Delta> \<turnstile> \<langle>r; \<omega>\<rangle> [\<Down>] Val (VRef (Address v)))
+definition make_semantic_rexp :: "('a, ('a unbounded_virtual_state)) interp \<Rightarrow> pure_exp \<Rightarrow> ('a equi_state, address) exp" where
+  "make_semantic_rexp \<Delta> r \<omega> = (if \<exists>v. \<Delta> \<turnstile> \<langle>r; uequi_of_equi \<omega>\<rangle> [\<Down>] Val (VRef (Address v))
+  then Some (SOME v. \<Delta> \<turnstile> \<langle>r; uequi_of_equi \<omega>\<rangle> [\<Down>] Val (VRef (Address v)))
   else None)"
 
 lemma make_semantic_bexp_Some[simp]:
-  shows "make_semantic_bexp \<Delta> b \<omega> = Some vb \<longleftrightarrow> \<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val (VBool vb)"
+  shows "make_semantic_bexp \<Delta> b \<omega> = Some vb \<longleftrightarrow> \<Delta> \<turnstile> \<langle>b; uequi_of_equi \<omega>\<rangle> [\<Down>] Val (VBool vb)"
   by (simp add:make_semantic_bexp_def split:if_splits; cases vb; auto dest:red_pure_val_unique)
 
 lemma make_semantic_exp_Some[simp]:
-  shows "make_semantic_exp \<Delta> b \<omega> = Some v \<longleftrightarrow> \<Delta> \<turnstile> \<langle>b; \<omega>\<rangle> [\<Down>] Val v"
+  shows "make_semantic_exp \<Delta> b \<omega> = Some v \<longleftrightarrow> \<Delta> \<turnstile> \<langle>b; uequi_of_equi \<omega>\<rangle> [\<Down>] Val v"
   by (simp add:make_semantic_exp_def split:if_splits; auto intro:someI dest:red_pure_val_unique)
 
 lemma make_semantic_rexp_Some[simp]:
-  shows "make_semantic_rexp \<Delta> r \<omega> = Some a \<longleftrightarrow> (\<Delta> \<turnstile> \<langle>r; \<omega>\<rangle> [\<Down>] Val (VRef (Address a)))"
+  shows "make_semantic_rexp \<Delta> r \<omega> = Some a \<longleftrightarrow> (\<Delta> \<turnstile> \<langle>r; uequi_of_equi \<omega>\<rangle> [\<Down>] Val (VRef (Address a)))"
   by (metis (no_types, lifting) make_semantic_rexp_def option.sel option.simps(3) red_pure_val_unique(1) ref.inject someI_ex val.inject(4))
 
 (* TODO: Move somewhere? *)
-definition red_pure_assert ::  "('a, 'a virtual_state) interp \<Rightarrow> pure_exp \<Rightarrow> 'a extended_val \<Rightarrow> 'a equi_state set" ("_ \<turnstile> ((\<langle>_\<rangle>) [\<Down>] _)" [51,0,0] 81) where
-"red_pure_assert \<Delta> e r = corely {\<omega>. \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] r}"
+definition red_pure_assert ::  "('a, 'a unbounded_virtual_state) interp \<Rightarrow> pure_exp \<Rightarrow> 'a extended_val \<Rightarrow> 'a unbounded_equi_state set" ("_ \<turnstile> ((\<langle>_\<rangle>) [\<Down>] _)" [51,0,0] 81) where
+  "red_pure_assert \<Delta> e r = corely {\<omega>. \<Delta> \<turnstile> \<langle>e; \<omega>\<rangle> [\<Down>] r}"
 
 (* plural of red_pure_assert. Assert that a list of reduction hold for the same state *)
-definition red_pure_exps_assert :: "('a, 'a virtual_state) interp \<Rightarrow> pure_exp list \<Rightarrow> 'a val list \<Rightarrow> 'a equi_state set" where
+definition red_pure_exps_assert :: "('a, 'a unbounded_virtual_state) interp \<Rightarrow> pure_exp list \<Rightarrow> 'a val list \<Rightarrow> 'a unbounded_equi_state set" where
   "red_pure_exps_assert \<Delta> es rs = corely {\<omega>. red_pure_exps \<Delta> \<omega> es rs }"
 
 lemma red_pure_assert_intro :
@@ -69,8 +69,8 @@ lemma red_pure_assert_elim :
   using red_pure_det_defined defined_def
   by (metis option.discI)
 
-definition acc_heap_loc :: "('a, 'a virtual_state) interp \<Rightarrow> vtyp \<Rightarrow> heap_loc \<Rightarrow> real \<Rightarrow> 'a equi_state set" where
-"acc_heap_loc \<Delta> ty hl p = {\<omega> | v \<omega>. get_state \<omega> = acc_virt hl (Abs_preal p) v \<and> 0 < p \<and> p \<le> 1 \<and> v \<in> sem_vtyp (domains \<Delta>) ty }"
+definition acc_heap_loc :: "('a, 'a unbounded_virtual_state) interp \<Rightarrow> vtyp \<Rightarrow> heap_loc \<Rightarrow> real \<Rightarrow> 'a unbounded_equi_state set" where
+  "acc_heap_loc \<Delta> ty hl p = {\<omega> | v \<omega>. get_ustate \<omega> = acc_uvirt hl (Abs_preal p) v \<and> 0 < p \<and> p \<le> 1 \<and> v \<in> sem_vtyp (domains \<Delta>) ty }"
 
 
 
@@ -110,10 +110,10 @@ lemma acc_heap_loc_starI :
   apply (rule abs_state_star_singletonI)
   using assms apply (solves \<open>simp\<close>)
   using assms apply (solves \<open>simp\<close>)
-    using assms apply (simp add:acc_heap_loc_def)
-    apply (rule, safe; assumption?) apply (rule)
-     apply (insert get_vm_bound[of "get_state \<omega>'" hl])
-     apply (solves \<open>simp add:preal_to_real\<close>)
+  using assms apply (simp add:acc_heap_loc_def)
+  apply (rule, safe; assumption?) apply (rule)
+  apply (insert get_vm_bound[of "get_state \<omega>'" hl])
+  apply (solves \<open>simp add:preal_to_real\<close>)
   using assms by (simp add:acc_virt_plus add_perm_del_perm compatible_partial_functions_singleton defined_val preal_to_real)
 
 lemma abs_state_star_singletonE :
@@ -127,7 +127,7 @@ lemma abs_state_star_singletonE :
      P"
   shows "P"
   by (smt (z3) add_set_commm assms(1) assms(2) full_add_charact(1) greater_state_has_greater_parts(2) in_set_sum singletonD star_to_singletonE state_add_iff x_elem_set_product)
-(*
+    (*
   by (metis (no_types, lifting) assms(1) assms(2) full_add_charact(2) full_add_defined greater_charact in_set_sum option.discI singletonD x_elem_set_product)
 *)
 
@@ -143,8 +143,8 @@ lemma acc_heap_loc_starE :
   done
 
 
-definition acc :: "('a, 'a virtual_state) ValueAndBasicState.interp \<Rightarrow> vtyp \<Rightarrow> ref \<Rightarrow> field_name \<Rightarrow> real option \<Rightarrow> _ set" where
-"acc \<Delta> ty r f p =
+definition acc :: "('a, 'a unbounded_virtual_state) ValueAndBasicState.interp \<Rightarrow> vtyp \<Rightarrow> ref \<Rightarrow> field_name \<Rightarrow> real option \<Rightarrow> _ set" where
+  "acc \<Delta> ty r f p =
   (if r = Null then \<llangle>p = Some 0\<rrangle> else
      if p = Some 0 then emp else
      \<Union> pp. \<llangle>p = None \<or> pp = the p\<rrangle> \<otimes> acc_heap_loc \<Delta> ty (the_address r, f) pp)"
@@ -173,46 +173,42 @@ lemma ppos_one:
   by (transfer) (simp add: mult_le_one) *)
 (*  ------------  *)
 
-lift_definition mult_virt :: "preal \<Rightarrow> 'a virtual_state \<Rightarrow> 'a virtual_state" is
-  "\<lambda> p s. ( (\<lambda> hl. pmin 1 (p * get_vm s hl)), get_vh s)"
-  apply (simp add: wf_pre_virtual_state_def wf_mask_simple_def ppos_one)
-  by (metis vstate_wf_Some)
-
-definition acc_pred :: "('a, 'a virtual_state) ValueAndBasicState.interp \<Rightarrow> 'a predicate_loc \<Rightarrow> real option \<Rightarrow> 'a equi_state set" where
+(* QUESTION: is the 0 < pp < 1 guard needed/correct *)
+definition acc_pred :: "('a, 'a unbounded_virtual_state) ValueAndBasicState.interp \<Rightarrow> 'a predicate_loc \<Rightarrow> real option \<Rightarrow> 'a unbounded_equi_state set" where
   "acc_pred \<Delta> pred p =  (\<Union> A. \<llangle> predicates \<Delta> pred = Some A \<rrangle>
     \<otimes> (if p = Some 0 then emp else
     \<Union> pp. \<llangle> p = None \<or> p = Some pp \<rrangle> \<otimes> \<llangle> 0 < pp \<and> pp \<le> 1 \<rrangle>
-      \<otimes> { \<omega> . \<exists>a \<in> A. get_state \<omega> = mult_virt (Abs_preal pp) a } ))"
+      \<otimes> { \<omega> . \<exists>a \<in> A. get_ustate \<omega> = (Abs_preal pp) \<odot> a } ))"
 
 
-fun atomic_assert :: "('v, ('v virtual_state)) interp \<Rightarrow> (field_name \<rightharpoonup> vtyp) \<Rightarrow> pure_exp atomic_assert \<Rightarrow> bool option \<Rightarrow> 'v equi_state set" where
+fun atomic_assert :: "('v, ('v unbounded_virtual_state)) interp \<Rightarrow> (field_name \<rightharpoonup> vtyp) \<Rightarrow> pure_exp atomic_assert \<Rightarrow> bool option \<Rightarrow> 'v unbounded_equi_state set" where
   "atomic_assert \<Delta> F (Pure e) (Some b) = (\<Delta> \<turnstile> \<langle>e\<rangle> [\<Down>] Val (VBool b))"
 | "atomic_assert \<Delta> F (Acc e f ep) (Some True) = (\<Union> r p ty. (\<Delta> \<turnstile> \<langle>e\<rangle> [\<Down>] Val (VRef r)) \<otimes> \<llangle>F f = Some ty\<rrangle> \<otimes>
       (case ep of Wildcard \<Rightarrow> \<llangle>p = None\<rrangle> | PureExp ep \<Rightarrow> \<Union> p'. (\<Delta> \<turnstile> \<langle>ep\<rangle> [\<Down>] Val (VPerm p')) \<otimes> \<llangle>p = Some p'\<rrangle>) \<otimes>
       acc \<Delta> ty r f p)"
-  | "atomic_assert \<Delta> F (AccPredicate ident eargs ep) (Some True) =
+| "atomic_assert \<Delta> F (AccPredicate ident eargs ep) (Some True) =
       (\<Union> vals p. (red_pure_exps_assert \<Delta> eargs vals) \<otimes>
         (case ep of Wildcard \<Rightarrow> \<llangle>p = None\<rrangle>
         | PureExp ep \<Rightarrow> \<Union> p'. (\<Delta> \<turnstile> \<langle>ep\<rangle> [\<Down>] Val (VPerm p') ) \<otimes> \<llangle>p = Some p'\<rrangle> ) \<otimes>
           acc_pred \<Delta> (ident, vals) p )"
 
-fun sat_set :: "('a, 'a virtual_state) ValueAndBasicState.interp \<Rightarrow> (field_name \<rightharpoonup> vtyp)
-     \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state set" ("\<langle>_, _\<rangle> \<Turnstile> ((\<langle>_\<rangle>))" [0,0,0] 84) where
+fun sat_set :: "('a, 'a unbounded_virtual_state) ValueAndBasicState.interp \<Rightarrow> (field_name \<rightharpoonup> vtyp)
+     \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a unbounded_equi_state set" ("\<langle>_, _\<rangle> \<Turnstile> ((\<langle>_\<rangle>))" [0,0,0] 84) where
   "\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>Atomic A\<rangle> = atomic_assert \<Delta> F A (Some True)"
 | "\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>Imp b A\<rangle> = (\<Union>v. (\<Delta> \<turnstile> \<langle>b\<rangle> [\<Down>] Val (VBool v)) \<otimes> (if v = True then (\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A\<rangle>) else emp))"
 | "(\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>CondAssert b A B\<rangle>) = (\<Union>v. (\<Delta> \<turnstile> \<langle>b\<rangle> [\<Down>] Val (VBool v)) \<otimes>
      (if v = True then (\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A\<rangle>) else (\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>B\<rangle>)))"
 | "(\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A && B\<rangle>) = ((\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A\<rangle>) \<otimes> (\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>B\<rangle>))"
 | "(\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A --* B\<rangle>) = ((\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A\<rangle>) --\<otimes> (\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>B\<rangle>))"
-(* | "\<Delta> \<Turnstile> \<langle>ForAll ty A\<rangle> \<longleftrightarrow> (\<forall>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)" *)
-(* | "\<Delta> \<Turnstile> \<langle>Exists ty A\<rangle> \<longleftrightarrow> (\<exists>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)" *)
+  (* | "\<Delta> \<Turnstile> \<langle>ForAll ty A\<rangle> \<longleftrightarrow> (\<forall>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)" *)
+  (* | "\<Delta> \<Turnstile> \<langle>Exists ty A\<rangle> \<longleftrightarrow> (\<exists>v \<in> set_from_type (domains \<Delta>) ty. \<Delta> \<Turnstile> \<langle>A; shift_and_add_equi_state \<omega> v\<rangle>)" *)
 | "(\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>ImpureAnd A B\<rangle>) = \<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A\<rangle> \<inter> \<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>B\<rangle>"
 | "(\<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>ImpureOr A B\<rangle>) = \<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>A\<rangle> \<union> \<langle>\<Delta>, F\<rangle> \<Turnstile> \<langle>B\<rangle>"
 
 
 datatype 'a custom =
   FieldAssign "('a equi_state, address) exp" field_ident "('a equi_state, 'a val) exp"
-(* | Label label *)
+  (* | Label label *)
 
 definition has_write_perm_only :: "'a virtual_state \<Rightarrow> (address \<times> field_ident) \<Rightarrow> bool" where
   "has_write_perm_only \<phi> hl \<longleftrightarrow> get_vm \<phi> hl = 1"
@@ -226,16 +222,16 @@ lift_definition set_value :: "'a virtual_state \<Rightarrow> (address \<times> f
   using gr_0_is_ppos vstate_wf_imp by auto
 
 lemma get_vh_vm_set_value [simp] :
-   "get_vh (set_value st hl v) = (get_vh st) (hl \<mapsto> v)"
-   "get_vm (set_value st hl v) = get_vm st"
+  "get_vh (set_value st hl v) = (get_vh st) (hl \<mapsto> v)"
+  "get_vm (set_value st hl v) = get_vm st"
   by (simp_all add:get_vh_def get_vm_def set_value.rep_eq)
 
 
 
 lemma sum_val_defined:
   assumes "Some a = x \<oplus> y"
-      and "get_vh a hl = Some v"
-    shows "get_vh x hl = Some v \<or> get_vh y hl = Some v"
+    and "get_vh a hl = Some v"
+  shows "get_vh x hl = Some v \<or> get_vh y hl = Some v"
 proof (cases "get_vh x hl")
   case None
   then have "get_vh a hl = get_vh y hl"
@@ -255,8 +251,8 @@ definition owns_only where
 
 lemma owns_onlyI[intro]:
   assumes "get_vm (get_state \<omega>) l = 1"
-      and "\<And>l'. l' \<noteq> l \<Longrightarrow> get_vm (get_state \<omega>) l' = 0"
-    shows "owns_only \<omega> l"
+    and "\<And>l'. l' \<noteq> l \<Longrightarrow> get_vm (get_state \<omega>) l' = 0"
+  shows "owns_only \<omega> l"
   using assms(1) assms(2) owns_only_def by blast
 
 definition remove_only where
@@ -335,24 +331,24 @@ lemma well_typed_heapI[intro]:
 
 lemma well_typed_heapE:
   assumes "well_typed_heap \<Gamma> \<phi>"
-      and "get_vh \<phi> hl = Some v"
-      and "\<Gamma> (snd hl) = Some ty"
-    shows "v \<in> ty"
+    and "get_vh \<phi> hl = Some v"
+    and "\<Gamma> (snd hl) = Some ty"
+  shows "v \<in> ty"
   using assms
   unfolding heap_typed_def by blast
 
 lemma well_typed_heap_sum:
   assumes "Some x = a \<oplus> b"
-      and "well_typed_heap \<Gamma> a"
-      and "well_typed_heap \<Gamma> b"
-    shows "well_typed_heap \<Gamma> x"
+    and "well_typed_heap \<Gamma> a"
+    and "well_typed_heap \<Gamma> b"
+  shows "well_typed_heap \<Gamma> x"
   using assms(1) assms(2) assms(3) heap_typed_def sum_val_defined
   by smt
 
 lemma well_typed_heap_smaller:
   assumes "a \<succeq> b"
-      and "Instantiation.well_typed_heap \<Gamma> a"
-    shows "Instantiation.well_typed_heap \<Gamma> b"
+    and "Instantiation.well_typed_heap \<Gamma> a"
+  shows "Instantiation.well_typed_heap \<Gamma> b"
   by (metis heap_typed_def assms(1) assms(2) get_vh_mono)
 
 lemma well_typed_heap_core:
@@ -362,7 +358,7 @@ lemma well_typed_heap_core:
 lemma partial_heap_same_sum:
   fixes h :: "'r partial_heap"
   assumes "h = h1"
-      and "h = h2"
+    and "h = h2"
   shows "Some h = h1 \<oplus> h2"
 proof (rule plus_funI)
   fix l show "Some (h l) = h1 l \<oplus> h2 l"
@@ -371,9 +367,9 @@ qed
 
 lemma same_core:
   assumes "get_store a = get_store b"
-      and "get_trace a = get_trace b"
-      and "get_vh (get_state a) = get_vh (get_state b)"
-    shows "|a| = |b|"
+    and "get_trace a = get_trace b"
+    and "get_vh (get_state a) = get_vh (get_state b)"
+  shows "|a| = |b|"
 proof (rule full_state_ext)
   show "get_store |a| = get_store |b|"
     by (simp add: assms(1) core_charact(1))
@@ -418,7 +414,7 @@ proof -
           proof (rule plus_funI)
             fix la show "Some (fst (Rep_virtual_state (snd (snd \<omega>))) la) =
           fst (Rep_virtual_state (snd (snd (remove_only \<omega> l)))) la \<oplus> fst (Rep_virtual_state (snd (snd ptr))) la"
-            by (metis SepAlgebra.plus_preal_def \<open>get_vm (get_state ptr) = (\<lambda>l'. if l = l' then PosReal.pwrite else PosReal.pnone)\<close> add.right_neutral assms(1) commutative fun_upd_def get_state_def get_vm_def remove_only_charact(2))
+              by (metis SepAlgebra.plus_preal_def \<open>get_vm (get_state ptr) = (\<lambda>l'. if l = l' then PosReal.pwrite else PosReal.pnone)\<close> add.right_neutral assms(1) commutative fun_upd_def get_state_def get_vm_def remove_only_charact(2))
           qed
           show "Some (snd (Rep_virtual_state (snd (snd \<omega>)))) = snd (Rep_virtual_state (snd (snd (remove_only \<omega> l)))) \<oplus> snd (Rep_virtual_state (snd (snd ptr)))"
           proof (rule plus_funI)
@@ -476,8 +472,8 @@ definition well_typed :: "(field_ident \<rightharpoonup> 'a val set) \<Rightarro
 
 lemma well_typedI[intro]:
   assumes "well_typed_heap \<Gamma> (snd \<omega>)"
-      and "\<And>l \<phi>. the_ag (fst \<omega>) l = Some \<phi> \<Longrightarrow> well_typed_heap \<Gamma> \<phi>"
-    shows "well_typed \<Gamma> \<omega>"
+    and "\<And>l \<phi>. the_ag (fst \<omega>) l = Some \<phi> \<Longrightarrow> well_typed_heap \<Gamma> \<phi>"
+  shows "well_typed \<Gamma> \<omega>"
   by (simp add: assms(1) assms(2) well_typed_def)
 
 
@@ -491,9 +487,9 @@ lemma well_typedE:
 
 lemma well_typed_sum:
   assumes "Some x = a \<oplus> b"
-      and "well_typed \<Gamma> a"
-      and "well_typed \<Gamma> b"
-    shows "well_typed \<Gamma> x"
+    and "well_typed \<Gamma> a"
+    and "well_typed \<Gamma> b"
+  shows "well_typed \<Gamma> x"
 proof (rule well_typedI)
   show "Instantiation.well_typed_heap \<Gamma> (snd x)"
     by (smt (verit, ccfv_threshold) assms(1) assms(2) assms(3) plus_prodE well_typedE(1) well_typed_heap_sum)
@@ -506,8 +502,8 @@ qed
 
 lemma well_typed_smaller:
   assumes "a \<succeq> b"
-      and "well_typed \<Gamma> a"
-    shows "well_typed \<Gamma> b"
+    and "well_typed \<Gamma> a"
+  shows "well_typed \<Gamma> b"
 proof (rule well_typedI)
   show "Instantiation.well_typed_heap \<Gamma> (snd b)"
     by (meson assms(1) assms(2) greater_prod_eq well_typed_def well_typed_heap_smaller)
@@ -565,11 +561,11 @@ definition update_value where
 
 lemma in_update_value:
   assumes "\<omega> \<in> A"
-      and "r \<omega> = Some l"
-      and "e \<omega> = Some v"
-      and "\<omega>' = set_state \<omega> (set_value (get_state \<omega>) (l, f) v)"
-      and "typed_value \<Delta> f v"
-    shows "\<omega>' \<in> update_value \<Delta> A r f e"
+    and "r \<omega> = Some l"
+    and "e \<omega> = Some v"
+    and "\<omega>' = set_state \<omega> (set_value (get_state \<omega>) (l, f) v)"
+    and "typed_value \<Delta> f v"
+  shows "\<omega>' \<in> update_value \<Delta> A r f e"
   using assms update_value_def by fast
 
 lemma update_valueE:
@@ -584,20 +580,20 @@ definition assertion_holds_at where
 
 inductive SL_Custom :: "('a val, (field_ident \<rightharpoonup> 'a val set)) abs_type_context \<Rightarrow> 'a equi_state set \<Rightarrow> 'a custom \<Rightarrow> 'a equi_state assertion \<Rightarrow> bool"
   where
-  RuleFieldAssign: "\<lbrakk> self_framing A; entails A { \<omega> |\<omega> l. get_m \<omega> (l, f) = 1 \<and> r \<omega> = Some l};
+    RuleFieldAssign: "\<lbrakk> self_framing A; entails A { \<omega> |\<omega> l. get_m \<omega> (l, f) = 1 \<and> r \<omega> = Some l};
   framed_by_exp A r; framed_by_exp A e \<rbrakk> \<Longrightarrow> SL_Custom \<Delta> A (FieldAssign r f e) (update_value \<Delta> A r f e)"
-(* | RuleLabel: "SL_Custom \<Delta> A (Label l) (assertion_holds_at l A)" *)
+    (* | RuleLabel: "SL_Custom \<Delta> A (Label l) (assertion_holds_at l A)" *)
 
 
 inductive_cases SL_custom_FieldAssign[elim!]: "SL_Custom \<Delta> A (FieldAssign r f e) B"
-(* inductive_cases SL_custom_Label[elim!]: "SL_Custom \<Delta> A (Label l) B" *)
+  (* inductive_cases SL_custom_Label[elim!]: "SL_Custom \<Delta> A (Label l) B" *)
 
 
 
 lemma set_state_value_inv:
   assumes "get_vh \<phi> l = Some v"
-      and "x = set_value \<phi> l v'"
-    shows "\<phi> = set_value x l v"
+    and "x = set_value \<phi> l v'"
+  shows "\<phi> = set_value x l v"
 proof (rule virtual_state_ext)
   show "get_vm \<phi> = get_vm (set_value x l v)"
     by (simp add: assms(2))
@@ -621,10 +617,10 @@ lemma get_m_stabilize[simp]:
 
 lemma virtual_state_ext_stable:
   assumes "get_vm a = get_vm b"
-      and "stable a"
-      and "stable b"
-      and "\<And>l va vb. get_vh a l = Some va \<Longrightarrow> get_vh b l = Some vb \<Longrightarrow> va = vb"
-    shows "a = b"
+    and "stable a"
+    and "stable b"
+    and "\<And>l va vb. get_vh a l = Some va \<Longrightarrow> get_vh b l = Some vb \<Longrightarrow> va = vb"
+  shows "a = b"
 proof (rule virtual_state_ext)
   show "get_vh a = get_vh b"
   proof (rule ext)
@@ -651,33 +647,33 @@ lemma stabilize_set_value:
     apply simp
    apply (rule virtual_state_ext_stable)
       apply simp_all
-   apply (rule stable_virtual_stateI)
-  apply (metis EquiSemAuxLemma.gr_0_is_ppos assms fun_upd_apply get_vh_vm_set_value(1) get_vh_vm_set_value(2) get_vm_stabilize stabilize_is_stable stable_virtual_state_def)
+    apply (rule stable_virtual_stateI)
+    apply (metis EquiSemAuxLemma.gr_0_is_ppos assms fun_upd_apply get_vh_vm_set_value(1) get_vh_vm_set_value(2) get_vm_stabilize stabilize_is_stable stable_virtual_state_def)
   by (metis (mono_tags, opaque_lifting) fun_upd_other fun_upd_same get_state_set_state get_state_stabilize get_vh_vm_set_value(1) option.sel stabilize_value_persists)
 
 lemma full_state_ext_better:
   assumes "get_store a = get_store b"
-      and "get_trace a = get_trace b"
-      and "get_state a = get_state b"
-    shows "a = b"
+    and "get_trace a = get_trace b"
+    and "get_state a = get_state b"
+  shows "a = b"
   by (metis agreement.exhaust_sel assms(1) assms(2) assms(3) get_state_def get_store_def get_trace_def prod.exhaust_sel)
 
 lemma typed_get_vh:
   assumes "TypedEqui.typed \<Delta> \<omega>"
-      and "get_vh (get_state \<omega>) hl = Some v"
-      and "custom_context \<Delta> (snd hl) = Some ty"
-    shows "v \<in> ty"
+    and "get_vh (get_state \<omega>) hl = Some v"
+    and "custom_context \<Delta> (snd hl) = Some ty"
+  shows "v \<in> ty"
   by (metis TypedEqui.typed_def assms get_abs_state_def get_state_def well_typedE(1) well_typed_heapE)
 
 lemma self_framing_update_value:
   fixes \<Delta> :: "('a val, char list \<Rightarrow> 'a val set option) abs_type_context"
   assumes "self_framing A"
-      and "wf_exp r"
-      and "wf_exp e"
-      and "framed_by_exp A r"
-      and "framed_by_exp A e"
-      and "\<And>\<omega> l. \<omega> \<in> A \<Longrightarrow> r \<omega> = Some l \<Longrightarrow> get_m \<omega> (l, f) = 1"
-    shows "self_framing (update_value \<Delta> A r f e)"
+    and "wf_exp r"
+    and "wf_exp e"
+    and "framed_by_exp A r"
+    and "framed_by_exp A e"
+    and "\<And>\<omega> l. \<omega> \<in> A \<Longrightarrow> r \<omega> = Some l \<Longrightarrow> get_m \<omega> (l, f) = 1"
+  shows "self_framing (update_value \<Delta> A r f e)"
 proof (rule self_framingI)
   fix \<omega>'
   show "\<omega>' \<in> update_value \<Delta> A r f e \<longleftrightarrow> stabilize \<omega>' \<in> update_value \<Delta> A r f e" (is "?P \<longleftrightarrow> ?Q")
@@ -767,19 +763,19 @@ qed
 
 inductive red_custom_stmt :: "('a val, field_ident \<rightharpoonup> 'a val set) abs_type_context \<Rightarrow> 'a custom \<Rightarrow> 'a equi_state \<Rightarrow> 'a equi_state set \<Rightarrow> bool"
   where
-  RedFieldAssign: "\<lbrakk> r \<omega> = Some hl ; e \<omega> = Some v ; get_vm (get_state \<omega>) (hl, f) = 1; custom_context \<Delta> f = Some ty; v \<in> ty \<rbrakk>
+    RedFieldAssign: "\<lbrakk> r \<omega> = Some hl ; e \<omega> = Some v ; get_vm (get_state \<omega>) (hl, f) = 1; custom_context \<Delta> f = Some ty; v \<in> ty \<rbrakk>
   \<Longrightarrow> red_custom_stmt \<Delta> (FieldAssign r f e) \<omega> {set_state \<omega> (set_value (get_state \<omega>) (hl, f) v)}"
-(* | RedLabel: "red_custom_stmt \<Delta> (Label l) \<omega> {set_trace \<omega> ((get_trace \<omega>)(l \<mapsto> get_state \<omega>)) }" *)
+    (* | RedLabel: "red_custom_stmt \<Delta> (Label l) \<omega> {set_trace \<omega> ((get_trace \<omega>)(l \<mapsto> get_state \<omega>)) }" *)
 
 inductive_cases red_custom_stmt_FieldAssign[elim!]: "red_custom_stmt \<Delta> (FieldAssign r f e) \<omega> S"
-(* inductive_cases red_custom_stmt_Label[elim!]: "red_custom_stmt \<Delta> (Label l) \<omega> S" *)
+  (* inductive_cases red_custom_stmt_Label[elim!]: "red_custom_stmt \<Delta> (Label l) \<omega> S" *)
 
 
 lemma SL_proof_FieldAssign_easy:
   assumes "\<forall>\<omega>\<in>SA. red_custom_stmt \<Delta> (FieldAssign r g e) (snd \<omega>) (f \<omega>)"
-      and "wf_custom_stmt \<Delta> (FieldAssign r g e)"
-      and "\<And>\<alpha>. \<alpha> \<in> SA \<Longrightarrow> stable (snd \<alpha>) \<and> TypedEqui.typed \<Delta> (snd \<alpha>)"
-    shows "SL_Custom \<Delta> (Stabilize (snd ` SA)) (FieldAssign r g e) (Stabilize (\<Union> (f ` SA)))"
+    and "wf_custom_stmt \<Delta> (FieldAssign r g e)"
+    and "\<And>\<alpha>. \<alpha> \<in> SA \<Longrightarrow> stable (snd \<alpha>) \<and> TypedEqui.typed \<Delta> (snd \<alpha>)"
+  shows "SL_Custom \<Delta> (Stabilize (snd ` SA)) (FieldAssign r g e) (Stabilize (\<Union> (f ` SA)))"
 proof -
 
   have wfs: "wf_exp r \<and> wf_exp e" using assms by auto
@@ -886,7 +882,7 @@ qed
 
 lemma SL_proof_aux_custom:
   assumes "\<forall>\<omega>\<in>SA. red_custom_stmt \<Delta> C (snd \<omega>) (f \<omega>)"
-      and "wf_custom_stmt \<Delta> C"
+    and "wf_custom_stmt \<Delta> C"
     and "\<And>\<alpha>. \<alpha> \<in> SA \<Longrightarrow> stable (snd \<alpha>) \<and> TypedEqui.typed \<Delta> (snd \<alpha>)"
   shows "SL_Custom \<Delta> (Stabilize (snd ` SA)) C (Stabilize (\<Union> (f ` SA)))"
 proof (cases C)
@@ -897,11 +893,11 @@ qed
 
 lemma custom_reciprocal:
   assumes "SL_Custom \<Delta> A C B"
-      and "\<omega> \<in> A"
-      and "wf_custom_stmt \<Delta> C"
-      and "sep_algebra_class.stable \<omega>"
-      and "TypedEqui.typed \<Delta> \<omega>"
-    shows "\<exists>S. red_custom_stmt \<Delta> C \<omega> S \<and> S \<subseteq> B"
+    and "\<omega> \<in> A"
+    and "wf_custom_stmt \<Delta> C"
+    and "sep_algebra_class.stable \<omega>"
+    and "TypedEqui.typed \<Delta> \<omega>"
+  shows "\<exists>S. red_custom_stmt \<Delta> C \<omega> S \<and> S \<subseteq> B"
   using assms
 proof (induct rule: SL_Custom.induct)
   case (RuleFieldAssign A f r e \<Delta>)
@@ -918,9 +914,9 @@ qed
 
 lemma red_custom_stable:
   assumes "red_custom_stmt \<Delta> C \<omega> S"
-      and "sep_algebra_class.stable \<omega>"
-      and "\<omega>' \<in> S"
-    shows "sep_algebra_class.stable \<omega>'"
+    and "sep_algebra_class.stable \<omega>"
+    and "\<omega>' \<in> S"
+  shows "sep_algebra_class.stable \<omega>'"
   using assms
 proof (induct rule: red_custom_stmt.induct)
   case (RedFieldAssign r \<omega> hl e v f \<Delta> ty)
@@ -930,10 +926,10 @@ qed
 
 lemma red_custom_well_typed:
   assumes "red_custom_stmt \<Delta> C \<omega> S"
-      and "well_typed (custom_context \<Delta>) (get_abs_state \<omega>)"
-      and "wf_custom_stmt \<Delta> C"
-      and "\<omega>' \<in> S"
-    shows "well_typed (custom_context \<Delta>) (get_abs_state \<omega>')"
+    and "well_typed (custom_context \<Delta>) (get_abs_state \<omega>)"
+    and "wf_custom_stmt \<Delta> C"
+    and "\<omega>' \<in> S"
+  shows "well_typed (custom_context \<Delta>) (get_abs_state \<omega>')"
   using assms
 proof (induct rule: red_custom_stmt.induct)
   case (RedFieldAssign r \<omega> hl e v f \<Delta> ty)
@@ -948,7 +944,7 @@ proof (induct rule: red_custom_stmt.induct)
         by (metis (mono_tags, lifting) RedFieldAssign.hyps(4) RedFieldAssign.hyps(5) RedFieldAssign.prems(1) RedFieldAssign.prems(3) fun_upd_triv get_abs_state_def get_state_def get_state_set_state get_vh_vm_set_value(1) heap_typed_insert singletonD snd_conv well_typedE(1))
     qed
   qed
-(*
+    (*
 next
   case (RedLabel \<Delta> l \<omega>)
   show "well_typed (custom_context \<Delta>) (get_abs_state \<omega>')"
@@ -995,9 +991,9 @@ abbreviation typed where
 
 
 (* TODO: unify make_context_semantic, s2a_ctxt and t2a_ctxt? *)
-definition make_context_semantic  :: "('a, 'a virtual_state) interp \<Rightarrow> (nat \<Rightarrow> vtyp option) \<times> (char list \<Rightarrow> vtyp option) \<Rightarrow> ('a val, char list \<Rightarrow> 'a val set option) abs_type_context"
+definition make_context_semantic  :: "('a, 'a unbounded_virtual_state) interp \<Rightarrow> (nat \<Rightarrow> vtyp option) \<times> (char list \<Rightarrow> vtyp option) \<Rightarrow> ('a val, char list \<Rightarrow> 'a val set option) abs_type_context"
   where
-  "make_context_semantic \<Delta> F = \<lparr> variables = (sem_store (domains \<Delta>) (fst F)), custom_context = (sem_fields (domains \<Delta>) (snd F))  \<rparr>"
+    "make_context_semantic \<Delta> F = \<lparr> variables = (sem_store (domains \<Delta>) (fst F)), custom_context = (sem_fields (domains \<Delta>) (snd F))  \<rparr>"
 
 definition well_typedly (* :: "('a, 'a virtual_state) interp \<Rightarrow> (field_name \<rightharpoonup> vtyp) \<Rightarrow> 'a equi_state set \<Rightarrow> 'a equi_state set"*)
   where
@@ -1025,7 +1021,7 @@ lemma well_typedly_plus :
   assumes "Some \<phi> = a \<oplus> b"
   assumes "typed (make_context_semantic \<Delta> F) \<phi>"
   shows "typed (make_context_semantic \<Delta> F) a"
-   and "typed (make_context_semantic \<Delta> F) b"
+    and "typed (make_context_semantic \<Delta> F) b"
   using assms(1) assms(2) well_typedly_plus1 apply blast
   by (metis assms(1) assms(2) commutative well_typedly_plus1)
 
@@ -1054,13 +1050,13 @@ lemma Stable_well_typedly :
   using TypedEqui.typed_state_then_stabilize_typed by fastforce
 
 definition make_semantic_assertion
-  :: "('a, 'a virtual_state) interp \<Rightarrow> ((var \<rightharpoonup> vtyp) \<times> (field_name \<rightharpoonup> vtyp)) \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state set"
+  :: "('a, 'a unbounded_virtual_state) interp \<Rightarrow> ((var \<rightharpoonup> vtyp) \<times> (field_name \<rightharpoonup> vtyp)) \<Rightarrow> (pure_exp, pure_exp atomic_assert) assert \<Rightarrow> 'a equi_state set"
   where
-  "make_semantic_assertion \<Delta> F A = (\<langle>\<Delta>, snd F\<rangle> \<Turnstile> \<langle>A\<rangle>)"
+    "make_semantic_assertion \<Delta> F A = uequi_of_equi -` (\<langle>\<Delta>, snd F\<rangle> \<Turnstile> \<langle>A\<rangle>)"
 
 fun compile (* :: "('a, 'a virtual_state) interp \<Rightarrow> (field_name \<rightharpoonup> vtyp) \<Rightarrow> stmt \<Rightarrow> ('a equi_state, 'a val, 'a custom) abs_stmt" *)
   where
-  "compile \<Delta> F stmt.Skip = abs_stmt.Skip"
+    "compile \<Delta> F stmt.Skip = abs_stmt.Skip"
 
 | "compile \<Delta> F (stmt.If b C1 C2) = abs_stmt.If (make_semantic_bexp \<Delta> b) (compile \<Delta> F C1) (compile \<Delta> F C2)"
 | "compile \<Delta> F (stmt.Seq C1 C2) = abs_stmt.Seq (compile \<Delta> F C1) (compile \<Delta> F C2)"
@@ -1097,7 +1093,7 @@ definition concrete_red_stmt_post (* :: "('a val, address) abs_type_context \<Ri
    ('a val, 'a virtual_state) abs_state \<Rightarrow> ('a val, 'a virtual_state) abs_state set \<Rightarrow> bool"
   *)
   where
-"concrete_red_stmt_post \<Delta> C \<omega> S \<longleftrightarrow> (\<exists> S'. ConcreteSemantics.red_stmt \<Delta> C \<omega> S' \<and> S' \<subseteq> S)"
+    "concrete_red_stmt_post \<Delta> C \<omega> S \<longleftrightarrow> (\<exists> S'. ConcreteSemantics.red_stmt \<Delta> C \<omega> S' \<and> S' \<subseteq> S)"
 
 lemma concrete_red_stmt_post_impl :
   assumes "concrete_red_stmt_post \<Delta> C \<omega> S'"
@@ -1136,7 +1132,7 @@ lemma concrete_post_Exhale :
   using assms apply (simp)
   apply (clarsimp simp add: add_set_def)
   apply (rule concrete_post_Exhale_raw; simp?)
-   apply (simp)
+  apply (simp)
   using assms by (simp)
 
 lemma concrete_post_Assert :
@@ -1202,7 +1198,7 @@ lemma concrete_post_LocalAssign :
   using assms
   apply (simp add: concrete_red_stmt_post_def)
   apply (rule exI, rule conjI)
-   apply (solves \<open>rule ConcreteSemantics.RedLocalAssign; assumption\<close>)
+  apply (solves \<open>rule ConcreteSemantics.RedLocalAssign; assumption\<close>)
   by (simp add: TypedEqui.assign_var_state_def)
 
 lemma concrete_post_FieldAssign :
@@ -1216,7 +1212,7 @@ lemma concrete_post_FieldAssign :
   using assms
   apply (simp add: concrete_red_stmt_post_def has_write_perm_only_def)
   apply (rule exI, rule conjI)
-   apply (rule ConcreteSemantics.RedCustom, rule RedFieldAssign; assumption)
+  apply (rule ConcreteSemantics.RedCustom, rule RedFieldAssign; assumption)
   by simp
 
 lemma concrete_post_Havoc :
@@ -1226,7 +1222,7 @@ lemma concrete_post_Havoc :
   using assms
   apply (simp add: concrete_red_stmt_post_def)
   apply (rule exI, rule conjI)
-   apply (solves \<open>rule ConcreteSemantics.RedHavoc; assumption\<close>)
+  apply (solves \<open>rule ConcreteSemantics.RedHavoc; assumption\<close>)
   by (simp add: TypedEqui.assign_var_state_def)
 
 (* No Scope
@@ -1252,7 +1248,7 @@ lemma concrete_post_Skip :
   shows "\<omega> \<in> S \<Longrightarrow> concrete_red_stmt_post \<Delta> Skip \<omega> S"
   unfolding concrete_red_stmt_post_def
   apply (rule exI, rule conjI)
-   apply (rule ConcreteSemantics.RedSkip)
+  apply (rule ConcreteSemantics.RedSkip)
   by (auto)
 
 

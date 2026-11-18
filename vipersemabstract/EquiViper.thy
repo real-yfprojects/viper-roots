@@ -496,7 +496,7 @@ type_synonym 'a ag_trace = "(label \<rightharpoonup> 'a virtual_state) agreement
 
 type_synonym 'a equi_state = "('a val, ('a ag_trace \<times> 'a virtual_state)) abs_state"
 
-(* QUESTION: in the unbouded setting traces still contain bounded states? *)
+(* Since traces only record valid program states they may only contain bounded vstates *)
 type_synonym 'a unbounded_equi_state = "('a val, ('a ag_trace \<times> 'a unbounded_virtual_state)) abs_state"
 
 definition get_state :: "'a equi_state \<Rightarrow> 'a virtual_state" where "get_state \<omega> = snd (snd \<omega>)"

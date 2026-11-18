@@ -70,7 +70,7 @@ lemma red_pure_assert_elim :
   by (metis option.discI)
 
 definition acc_heap_loc :: "('a, 'a unbounded_virtual_state) interp \<Rightarrow> vtyp \<Rightarrow> heap_loc \<Rightarrow> real \<Rightarrow> 'a unbounded_equi_state set" where
-  "acc_heap_loc \<Delta> ty hl p = {\<omega> | v \<omega>. get_ustate \<omega> = acc_uvirt hl (Abs_preal p) v \<and> 0 < p \<and> p \<le> 1 \<and> v \<in> sem_vtyp (domains \<Delta>) ty }"
+  "acc_heap_loc \<Delta> ty hl p = {\<omega> | v \<omega>. get_ustate \<omega> = acc_uvirt hl (Abs_preal p) v \<and> 0 < p \<and> v \<in> sem_vtyp (domains \<Delta>) ty }"
 
 
 
@@ -78,7 +78,7 @@ lemma acc_heap_loc_Stable [simp] :
   "Stable (acc_heap_loc \<Delta> ty hl p)"
   apply (clarsimp simp add:acc_heap_loc_def)
   apply (rule StableI)
-  by (smt (verit) get_state_stabilize mem_Collect_eq norm_preal(1) positive_real_preal preal_not_0_gt_0 stabilize_acc_virt)
+  by (fastforce simp add: uvstate_stabilize_acc_virt norm_preal preal_to_real)
 
 lemma abs_state_ext_iff :
   "\<omega>1 = \<omega>2 \<longleftrightarrow> get_store \<omega>1 = get_store \<omega>2 \<and> get_trace \<omega>1 = get_trace \<omega>2 \<and> get_state \<omega>1 = get_state \<omega>2"
@@ -99,22 +99,31 @@ lemma abs_state_star_singletonI :
   using assms
   by (smt (verit, best) core_charact(1) core_is_smaller get_state_make_equi_state get_store_make_equi_state get_trace_make_equi_state greater_equiv greater_state_has_greater_parts(2) state_add_iff)
 
+lemma uabs_state_star_singletonI :
+  assumes "get_store \<omega>' = get_store \<omega>"
+  assumes "get_utrace \<omega>' = get_utrace \<omega>"
+  assumes "set_ustate \<omega> st \<in> A"
+  assumes "Some (get_ustate \<omega>') = get_ustate \<omega> \<oplus> st"
+  shows "\<omega>' \<in> {\<omega>} \<otimes> A"
+  apply (subst in_add_set)
+  apply (rule exI, rule exI)
+  apply (safe)
+    apply (rule refl)
+   apply (rule assms(3))
+  using assms by (simp add: ustate_add_iff)
 
 lemma acc_heap_loc_starI :
   assumes "0 < p"
-  assumes "Abs_preal p \<le> get_vm (get_state \<omega>') hl"
-  assumes "get_vh (get_state \<omega>') hl = Some v"
-  assumes "\<omega> = set_state \<omega>' (del_perm (get_state \<omega>') hl (Abs_preal p))"
+  assumes "Abs_preal p \<le> get_um \<omega>' hl"
+  assumes "get_uh \<omega>' hl = Some v"
+  assumes "\<omega> = set_ustate \<omega>' (udel_perm (get_ustate \<omega>') hl (Abs_preal p))"
   assumes "v \<in> sem_vtyp (domains \<Delta>) ty"
   shows "\<omega>' \<in> {\<omega>} \<otimes> acc_heap_loc \<Delta> ty hl p"
-  apply (rule abs_state_star_singletonI)
+  apply (rule uabs_state_star_singletonI[where st="acc_uvirt hl (Abs_preal p) v"])
   using assms apply (solves \<open>simp\<close>)
   using assms apply (solves \<open>simp\<close>)
-  using assms apply (simp add:acc_heap_loc_def)
-  apply (rule, safe; assumption?) apply (rule)
-  apply (insert get_vm_bound[of "get_state \<omega>'" hl])
-  apply (solves \<open>simp add:preal_to_real\<close>)
-  using assms by (simp add:acc_virt_plus add_perm_del_perm compatible_partial_functions_singleton defined_val preal_to_real)
+  using assms apply (solves \<open>auto simp add:acc_heap_loc_def\<close>)
+  using assms by (simp add:acc_uvirt_plus uadd_perm_udel_perm compatible_partial_functions_singleton defined_val)
 
 lemma abs_state_star_singletonE :
   assumes "\<omega>' \<in> {\<omega>} \<otimes> A"
@@ -131,14 +140,27 @@ lemma abs_state_star_singletonE :
   by (metis (no_types, lifting) assms(1) assms(2) full_add_charact(2) full_add_defined greater_charact in_set_sum option.discI singletonD x_elem_set_product)
 *)
 
+lemma uabs_state_star_singletonE :
+  assumes "\<omega>' \<in> {\<omega>} \<otimes> A"
+  assumes "\<And> \<omega>''. \<omega>'' \<in> A \<Longrightarrow>
+     get_store \<omega>'' = get_store \<omega> \<Longrightarrow>
+     get_utrace \<omega>'' = get_utrace \<omega> \<Longrightarrow>
+     get_store \<omega>' = get_store \<omega> \<Longrightarrow>
+     get_utrace \<omega>' = get_utrace \<omega> \<Longrightarrow>
+     Some (get_ustate \<omega>') = get_ustate \<omega> \<oplus> get_ustate \<omega>'' \<Longrightarrow>
+     P"
+  shows "P"
+  using assms(1) by (auto simp add: in_add_set ustate_add_iff intro: assms(2))
+
+(* QUESTION: p guard correct? *)
 lemma acc_heap_loc_starE :
   assumes "\<omega>' \<in> {\<omega>} \<otimes> acc_heap_loc \<Delta> ty hl p"
-  shows "\<exists> v. \<omega>' = set_state \<omega> (add_perm (get_state \<omega>) hl (Abs_preal p) v) \<and> 0 < p \<and> p \<le> 1 \<and> get_vm (get_state \<omega>) hl + Abs_preal p \<le> 1 \<and>
-      v \<in> sem_vtyp (domains \<Delta>) ty \<and> (get_vh (get_state \<omega>) ## [hl \<mapsto> v])"
+  shows "\<exists> v. \<omega>' = set_ustate \<omega> (uadd_perm (get_ustate \<omega>) hl (Abs_preal p) v) \<and> 0 < p \<and>
+      v \<in> sem_vtyp (domains \<Delta>) ty \<and> (get_uh \<omega> ## [hl \<mapsto> v])"
   apply (insert assms)
-  apply (erule abs_state_star_singletonE) subgoal for \<omega>''
+  apply (erule uabs_state_star_singletonE) subgoal for \<omega>''
     apply (clarsimp simp add:acc_heap_loc_def) subgoal for v
-      by (auto simp add:acc_virt_plus abs_state_ext_iff preal_to_real)
+      by (auto simp add:acc_uvirt_plus intro!: full_ustate_ext)
     done
   done
 
@@ -168,17 +190,15 @@ lemma ppos_one:
   "ppos 1"
   by (simp add: norm_preal preal_to_real)
 
-(* lemma preal_mult_le_1 :
-  "(p :: preal) \<le> 1 \<Longrightarrow> (m :: preal) \<le> 1 \<Longrightarrow> p * m \<le> 1"
-  by (transfer) (simp add: mult_le_one) *)
 (*  ------------  *)
 
-(* QUESTION: is the 0 < pp < 1 guard needed/correct *)
 definition acc_pred :: "('a, 'a unbounded_virtual_state) ValueAndBasicState.interp \<Rightarrow> 'a predicate_loc \<Rightarrow> real option \<Rightarrow> 'a unbounded_equi_state set" where
-  "acc_pred \<Delta> pred p =  (\<Union> A. \<llangle> predicates \<Delta> pred = Some A \<rrangle>
-    \<otimes> (if p = Some 0 then emp else
-    \<Union> pp. \<llangle> p = None \<or> p = Some pp \<rrangle> \<otimes> \<llangle> 0 < pp \<and> pp \<le> 1 \<rrangle>
-      \<otimes> { \<omega> . \<exists>a \<in> A. get_ustate \<omega> = (Abs_preal pp) \<odot> a } ))"
+  "acc_pred \<Delta> pred p =  (\<Union> A. \<llangle> predicates \<Delta> pred = Some A \<rrangle> \<comment>\<open>predicate must be defined\<close>
+    \<otimes> (if p = Some 0 then emp else \<comment>\<open>empty state for zero permission\<close>
+    \<comment>\<open>p=None is wildcard so pp must not be zero\<close>
+    \<Union> pp. \<llangle> p = None \<or> p = Some pp \<rrangle> \<otimes> \<llangle>0 < pp \<rrangle> \<otimes>
+      \<comment>\<open>scaled state satisfies predicate\<close>
+      { \<omega> . \<exists>a \<in> A. get_ustate \<omega> = (Abs_preal pp) \<odot> a } ))"
 
 
 fun atomic_assert :: "('v, ('v unbounded_virtual_state)) interp \<Rightarrow> (field_name \<rightharpoonup> vtyp) \<Rightarrow> pure_exp atomic_assert \<Rightarrow> bool option \<Rightarrow> 'v unbounded_equi_state set" where
@@ -643,12 +663,12 @@ lemma stabilize_set_value:
   assumes "get_m \<omega> l > 0"
   shows "stabilize (set_state \<omega> (set_value (get_state \<omega>) l v)) = set_state (stabilize \<omega>) (set_value (get_state (stabilize \<omega>)) l v)"
   apply (rule full_state_ext)
-    apply (rule ext)
-    apply simp
-   apply (rule virtual_state_ext_stable)
-      apply simp_all
-    apply (rule stable_virtual_stateI)
-    apply (metis EquiSemAuxLemma.gr_0_is_ppos assms fun_upd_apply get_vh_vm_set_value(1) get_vh_vm_set_value(2) get_vm_stabilize stabilize_is_stable stable_virtual_state_def)
+  apply (rule ext)
+  apply simp
+  apply (rule virtual_state_ext_stable)
+  apply simp_all
+  apply (rule stable_virtual_stateI)
+  apply (metis EquiSemAuxLemma.gr_0_is_ppos assms fun_upd_apply get_vh_vm_set_value(1) get_vh_vm_set_value(2) get_vm_stabilize stabilize_is_stable stable_virtual_state_def)
   by (metis (mono_tags, opaque_lifting) fun_upd_other fun_upd_same get_state_set_state get_state_stabilize get_vh_vm_set_value(1) option.sel stabilize_value_persists)
 
 lemma full_state_ext_better:
@@ -1007,7 +1027,7 @@ lemma well_typedly_add_set1 :
   shows "well_typedly \<Delta> F A1 \<otimes> well_typedly \<Delta> F A2 \<subseteq> well_typedly \<Delta> F (A1 \<otimes> A2)"
   unfolding well_typedly_def add_set_def
   apply (auto)
-   apply blast
+  apply blast
   using TypedEqui.typed_sum by blast
 
 lemma well_typedly_plus1 :

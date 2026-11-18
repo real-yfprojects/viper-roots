@@ -1965,6 +1965,114 @@ lemma stable_get_state :
   "stable (get_state \<omega>) \<longleftrightarrow> stable \<omega>"
   by (simp add:get_state_def stable_prod_def stable_agreement_def)
 
+subsection \<open>Unbounded counterparts: add_perm, del_perm, acc_uvirt and equi_state accessors\<close>
+
+lift_definition uadd_perm :: "'a unbounded_virtual_state \<Rightarrow> heap_loc \<Rightarrow> preal \<Rightarrow> 'a val \<Rightarrow> 'a unbounded_virtual_state" is
+  "\<lambda> st hl (p :: preal) v. ((fst st)(hl := fst st hl + p), (snd st)(hl \<mapsto> v))"
+  by (auto simp add: wf_permission_occupied_def)
+
+lemma uadd_perm_get_uvh [simp] :
+  "get_uvh (uadd_perm st hl p v) = (get_uvh st)(hl \<mapsto> v)"
+  by (simp add: get_uvh.rep_eq uadd_perm.rep_eq)
+
+lemma uadd_perm_get_uvm [simp] :
+  "get_uvm (uadd_perm st hl p v) = (get_uvm st)(hl := get_uvm st hl + p)"
+  by (simp add: get_uvm_def uadd_perm.rep_eq)
+
+lift_definition udel_perm :: "'a unbounded_virtual_state \<Rightarrow> heap_loc \<Rightarrow> preal \<Rightarrow> 'a unbounded_virtual_state" is
+  "\<lambda> st hl (p :: preal). ((fst st)(hl := fst st hl - p), snd st)"
+  by (auto simp add: wf_permission_occupied_def dest: preal_sub_ppos)
+
+lemma udel_perm_get_uvh [simp] :
+  "get_uvh (udel_perm st hl p) = get_uvh st"
+  by (simp add: get_uvh.rep_eq udel_perm.rep_eq)
+
+lemma udel_perm_get_uvm [simp] :
+  "get_uvm (udel_perm st hl p) = (get_uvm st)(hl := get_uvm st hl - p)"
+  by (simp add: get_uvm_def udel_perm.rep_eq)
+
+lemma uadd_perm_udel_perm :
+  assumes "get_uvh st hl = Some v"
+  assumes "p \<le> get_uvm st hl"
+  shows "uadd_perm (udel_perm st hl p) hl p v = st"
+  apply (rule uvstate_ext; rule ext; simp add:assms)
+  using assms by (simp add:preal_to_real)
+
+lemma acc_uvirt_plus :
+  shows "Some st2 = st1 \<oplus> acc_uvirt hl p v \<longleftrightarrow>
+    st2 = uadd_perm st1 hl p v \<and> get_uvh st1 ## [hl \<mapsto> v]"
+  apply (auto simp add:uvstate_add_iff)
+  subgoal
+    apply (rule uvstate_ext; simp; rule ext)
+    subgoal for hl2
+      by (drule plus_funE[where l=hl2 and x="get_uvm _"]; auto simp add:plus_preal_def)
+    subgoal for hl2
+      apply (drule plus_funE[where l=hl2 and x="get_uvh _"]; simp split:if_splits)
+      by (cases "get_uvh st1 hl"; simp add:plus_val_def split:if_splits)
+    done
+  subgoal by (metis defined_def option.discI)
+  subgoal by (cases "get_uvh st1 hl"; simp add:fun_plus_iff plus_val_id compatible_partial_functions_singleton defined_val)
+  subgoal by (simp add:fun_plus_iff plus_preal_def)
+  done
+
+lemma ustate_add_iff:
+  "Some (\<omega> :: 'v unbounded_equi_state) = a \<oplus> b \<longleftrightarrow>
+   get_store \<omega> = get_store a \<and> get_store \<omega> = get_store b \<and>
+   get_utrace \<omega> = get_utrace a \<and> get_utrace \<omega> = get_utrace b \<and>
+   Some (get_ustate \<omega>) = get_ustate a \<oplus> get_ustate b"
+proof
+  assume LHS: "Some \<omega> = a \<oplus> b"
+  have "get_store \<omega> = get_store a \<and> get_store \<omega> = get_store b"
+    using plus_prodE[OF HOL.sym[OF LHS]] plus_AgE[of "fst \<omega>" "fst a" "fst b"]
+    unfolding get_store_def by auto
+  moreover have snd_plus: "Some (snd \<omega>) = snd a \<oplus> snd b"
+    by (metis LHS plus_prodE)
+  then have "get_utrace \<omega> = get_utrace a \<and> get_utrace \<omega> = get_utrace b"
+    by (metis get_utrace_def plus_AgE plus_prodE)
+  moreover have "Some (get_ustate \<omega>) = get_ustate a \<oplus> get_ustate b"
+    by (metis get_ustate_def plus_prodE snd_plus)
+  ultimately show "get_store \<omega> = get_store a \<and> get_store \<omega> = get_store b \<and>
+   get_utrace \<omega> = get_utrace a \<and> get_utrace \<omega> = get_utrace b \<and>
+   Some (get_ustate \<omega>) = get_ustate a \<oplus> get_ustate b"
+    by blast
+next
+  assume RHS: "get_store \<omega> = get_store a \<and> get_store \<omega> = get_store b \<and>
+   get_utrace \<omega> = get_utrace a \<and> get_utrace \<omega> = get_utrace b \<and>
+   Some (get_ustate \<omega>) = get_ustate a \<oplus> get_ustate b"
+  have fst_plus: "Some (fst \<omega>) = fst a \<oplus> fst b"
+    by (metis RHS ag_the_ag_same get_store_def plus_AgI)
+  have snd_plus: "Some (snd \<omega>) = snd a \<oplus> snd b"
+    apply (rule plus_prodI)
+     apply (metis RHS agreement.exhaust_sel get_utrace_def plus_AgI)
+    by (metis RHS get_ustate_def)
+  then show "Some \<omega> = a \<oplus> b"
+    using fst_plus plus_prodI by fastforce
+qed
+
+lemma full_ustate_ext:
+  assumes "get_store a = get_store b"
+    and "get_utrace a = get_utrace b"
+    and "get_ustate a = get_ustate b"
+  shows "(a :: 'v unbounded_equi_state) = b"
+  by (metis agreement.exhaust_sel assms get_ustate_def get_store_def get_utrace_def prod_eqI)
+
+lemma get_store_set_ustate [simp] :
+  "get_store (set_ustate \<omega> st) = get_store \<omega>"
+  by (simp add: get_store_def set_ustate_def)
+lemma get_utrace_set_ustate [simp] :
+  "get_utrace (set_ustate \<omega> st) = get_utrace \<omega>"
+  by (simp add: get_utrace_def set_ustate_def)
+lemma get_ustate_set_ustate [simp] :
+  "get_ustate (set_ustate \<omega> st) = st"
+  by (simp add: get_ustate_def set_ustate_def)
+
+lemma get_ustate_stabilize [simp] :
+  "get_ustate (stabilize \<omega>) = stabilize (get_ustate \<omega>)"
+  by (simp add: get_ustate_def stabilize_prod_def)
+lemma get_utrace_stabilize [simp] :
+  "get_utrace (stabilize \<omega>) = get_utrace \<omega>"
+  by (simp add: get_utrace_def stabilize_prod_def stabilize_agreement_def)
+
 subsection \<open>equi_state_record\<close>
 
 (* The automation likes to destruct tuples. equi_state_record is a crude hack to prevent the automation from doing this. *)
